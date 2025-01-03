@@ -8,6 +8,7 @@ from error_handling import register_error_handlers
 import os
 import logging
 from logging_config import setup_logging
+import time
 
 # Swagger configuration
 SWAGGER_URL = '/api/docs'
@@ -51,6 +52,7 @@ def create_app():
     @app.before_request
     def log_request_info():
         """Log request details for debugging purposes."""
+        request.start_time = time.time()
         app.logger.debug(f"Request: {request.method} {request.url}")
         app.logger.debug(f"Headers: {request.headers}")
         app.logger.debug(f"Body: {request.get_data(as_text=True)}")
@@ -58,8 +60,10 @@ def create_app():
     @app.after_request
     def log_response_info(response):
         """Log response details for debugging purposes."""
+        response_time = time.time() - request.start_time
         app.logger.debug(f"Response status: {response.status}")
         app.logger.debug(f"Response data: {response.get_data(as_text=True)}")
+        app.logger.debug(f"Response time: {response_time:.3f}s")
         return response
 
     @app.errorhandler(400)
@@ -87,6 +91,11 @@ def create_app():
         """Handle 500 errors with a custom response."""
         app.logger.error(f"Server error: {error}")
         return jsonify({"error": "Internal server error", "status": 500}), 500
+
+    @app.route("/health", methods=["GET"])
+    def health_check():
+        """Health check endpoint."""
+        return jsonify({"status": "OK", "message": "Application is running."}), 200
 
     return app
 

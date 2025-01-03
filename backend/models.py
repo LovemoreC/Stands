@@ -1,60 +1,74 @@
 from extensions import db
+from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.orm import validates
 
 class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(50), nullable=False, default='user')
-    permissions = db.Column(db.PickleType, nullable=False, default=list)
+
+    projects = db.relationship('Project', backref='manager', lazy=True)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    @validates('email')
+    def validate_email(self, key, email):
+        assert '@' in email, "Invalid email format"
+        return email
+
+    def __repr__(self):
+        return f"<User {self.username}, Role: {self.role}>"
 
 class Project(db.Model):
     __tablename__ = 'projects'
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(80), nullable=False)
-    description = db.Column(db.String(200), nullable=True)
-    assigned_realtors = db.relationship('User', secondary='project_realtor', backref='assigned_projects')
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
-class Property(db.Model):
-    __tablename__ = 'properties'
+    assigned_realtors = db.relationship('User', secondary='project_realtor', backref='assigned_projects', lazy='dynamic')
+
+    def __repr__(self):
+        return f"<Project {self.name}>"
+
+class Customer(db.Model):
+    __tablename__ = 'customers'
 
     id = db.Column(db.Integer, primary_key=True)
-    number = db.Column(db.String(20), nullable=False)
-    size = db.Column(db.String(20), nullable=True)
-    price = db.Column(db.Float, nullable=False)
-    name = db.Column(db.String(80), nullable=False)
-    status = db.Column(db.String(20), nullable=False, default="available")
-    latitude = db.Column(db.Float, nullable=True)
-    longitude = db.Column(db.Float, nullable=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    phone = db.Column(db.String(20), nullable=False)
     project_id = db.Column(db.Integer, db.ForeignKey('projects.id'), nullable=False)
-    project = db.relationship('Project', backref='properties')
 
-class Application(db.Model):
-    __tablename__ = 'applications'
+    payments = db.relationship('Payment', backref='customer', lazy=True)
 
-    id = db.Column(db.Integer, primary_key=True)
-    property_id = db.Column(db.Integer, db.ForeignKey('properties.id'), nullable=False)
-    realtor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    customer_name = db.Column(db.String(100), nullable=False)
-    customer_email = db.Column(db.String(120), nullable=False)
-    customer_phone = db.Column(db.String(20), nullable=False)
-    supporting_documents = db.Column(db.String(200), nullable=True)
-    status = db.Column(db.String(20), nullable=False, default="pending")
-    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
-    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    @validates('email')
+    def validate_email(self, key, email):
+        assert '@' in email, "Invalid email format"
+        return email
+
+    def __repr__(self):
+        return f"<Customer {self.name}, Email: {self.email}>"
 
 class Payment(db.Model):
     __tablename__ = 'payments'
 
     id = db.Column(db.Integer, primary_key=True)
-    application_id = db.Column(db.Integer, db.ForeignKey('applications.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
-    payment_date = db.Column(db.DateTime, default=db.func.current_timestamp())
-    proof_of_payment = db.Column(db.String(200), nullable=True)
-    status = db.Column(db.String(20), nullable=False, default="pending")
+    date = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
+    customer_id = db.Column(db.Integer, db.ForeignKey('customers.id'), nullable=False)
+
+    def __repr__(self):
+        return f"<Payment {self.amount} for Customer ID: {self.customer_id}>"
 
 # Association Table
 project_realtor = db.Table('project_realtor',
