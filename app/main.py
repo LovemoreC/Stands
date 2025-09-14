@@ -7,6 +7,7 @@ from .models import (
     PropertyStatus,
     Mandate,
     Agent,
+    AgentRole,
     MandateStatus,
     SubmissionStatus,
     Offer,
@@ -47,13 +48,13 @@ def get_current_agent(x_token: str = Header(...)) -> Agent:
 
 
 def require_admin(agent: Agent = Depends(get_current_agent)) -> Agent:
-    if agent.role != "admin":
+    if agent.role != AgentRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin privileges required")
     return agent
 
 
 def require_compliance(agent: Agent = Depends(get_current_agent)) -> Agent:
-    if agent.role not in ("compliance", "admin"):
+    if agent.role not in (AgentRole.COMPLIANCE, AgentRole.ADMIN):
         raise HTTPException(status_code=403, detail="Compliance privileges required")
     return agent
 
@@ -73,6 +74,8 @@ async def log_request(request: Request, call_next):
 def create_agent(agent: Agent):
     if agent.username in agents:
         raise HTTPException(status_code=400, detail="Agent exists")
+    if agent.role not in AgentRole:
+        raise HTTPException(status_code=400, detail="Unknown role")
     agents[agent.username] = agent
     return agent
 
@@ -155,7 +158,7 @@ def accept_mandate(stand_id: int, agent: Agent = Depends(get_current_agent)):
 @app.get("/stands/available", response_model=List[Stand])
 def available_stands(agent: Agent = Depends(get_current_agent)):
     result = [s for s in stands.values() if s.status == PropertyStatus.AVAILABLE]
-    if agent.role == "agent":
+    if agent.role == AgentRole.AGENT:
         result = [
             s
             for s in result
@@ -168,7 +171,7 @@ def available_stands(agent: Agent = Depends(get_current_agent)):
 
 
 def _ensure_owner(obj_realtor: str, agent: Agent):
-    if agent.role != "admin" and obj_realtor != agent.username:
+    if agent.role != AgentRole.ADMIN and obj_realtor != agent.username:
         raise HTTPException(status_code=403, detail="Not authorized")
 
 
@@ -342,7 +345,7 @@ def list_notifications(_: Agent = Depends(require_admin)):
 @app.get("/dashboard")
 def dashboard(agent: Agent = Depends(get_current_agent)):
     data = {}
-    if agent.role in ("manager", "admin"):
+    if agent.role in (AgentRole.MANAGER, AgentRole.ADMIN):
         prop_counts = {
             status.value: sum(1 for s in stands.values() if s.status == status)
             for status in PropertyStatus
@@ -357,7 +360,7 @@ def dashboard(agent: Agent = Depends(get_current_agent)):
         }
         data["property_status"] = prop_counts
         data["mandates"] = mandate_counts
-    if agent.role in ("compliance", "admin"):
+    if agent.role in (AgentRole.COMPLIANCE, AgentRole.ADMIN):
         total_deposits = sum(sum(req.deposits) for req in account_openings.values())
         approvals = sum(
             1
@@ -424,7 +427,7 @@ def sign_agreement(agreement_id: int, agent: Agent = Depends(get_current_agent))
         raise HTTPException(status_code=404, detail="Agreement not found")
     agreement = agreements[agreement_id]
     timestamp = datetime.utcnow().isoformat()
-    if agent.role == "admin":
+    if agent.role == AgentRole.ADMIN:
         agreement.bank_signature = f"signed by {agent.username} at {timestamp}"
         agreement.audit_log.append(
             f"{timestamp}: bank signed by {agent.username}"
@@ -450,7 +453,7 @@ def upload_agreement(
     agreement.versions.append(upload.document)
     agreement.document = upload.document
     timestamp = datetime.utcnow().isoformat()
-    role = "bank" if agent.role == "admin" else "customer"
+    role = "bank" if agent.role == AgentRole.ADMIN else "customer"
     agreement.audit_log.append(f"{timestamp}: {role} uploaded new version")
     agreements[agreement_id] = agreement
     return agreement

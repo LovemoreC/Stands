@@ -37,9 +37,16 @@ class Stand(BaseModel):
     mandate: Optional[Mandate] = None
 
 
+class AgentRole(str, Enum):
+    ADMIN = "admin"
+    AGENT = "agent"
+    MANAGER = "manager"
+    COMPLIANCE = "compliance"
+
+
 class Agent(BaseModel):
     username: str
-    role: str
+    role: AgentRole
 
 
 class SubmissionStatus(str, Enum):
