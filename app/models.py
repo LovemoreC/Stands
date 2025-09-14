@@ -104,11 +104,11 @@ class StatusUpdate(BaseModel):
 
 class AccountSetup(BaseModel):
     account_number: str
-    deposit_threshold: float
+    deposit_threshold: float = Field(..., gt=0)
 
 
 class Deposit(BaseModel):
-    amount: float
+    amount: float = Field(..., gt=0)
 
 
 class LoanDecisionUpdate(BaseModel):

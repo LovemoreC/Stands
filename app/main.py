@@ -270,6 +270,8 @@ def open_account(req_id: int, details: AccountSetup, _: Agent = Depends(require_
     if req_id not in account_openings:
         raise HTTPException(status_code=404, detail="Request not found")
     request = account_openings[req_id]
+    if details.deposit_threshold <= 0:
+        raise HTTPException(status_code=400, detail="Deposit threshold must be positive")
     request.account_number = details.account_number
     request.deposit_threshold = details.deposit_threshold
     request.status = SubmissionStatus.IN_PROGRESS
@@ -282,6 +284,8 @@ def record_deposit(req_id: int, deposit: Deposit, _: Agent = Depends(require_adm
     if req_id not in account_openings:
         raise HTTPException(status_code=404, detail="Request not found")
     request = account_openings[req_id]
+    if deposit.amount <= 0:
+        raise HTTPException(status_code=400, detail="Deposit amount must be positive")
     request.deposits.append(deposit.amount)
     if request.deposit_threshold is not None and sum(request.deposits) >= request.deposit_threshold:
         request.status = SubmissionStatus.COMPLETED
