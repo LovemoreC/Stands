@@ -18,6 +18,17 @@ uvicorn app.main:app --reload
 
 Interactive docs will be available at `http://127.0.0.1:8000/docs`.
 
+## Importing Projects and Stands
+
+Administrators can bulk import projects and stand/unit details from a CSV or Excel file:
+
+```
+POST /import/properties
+```
+
+The file must contain the columns `project_id`, `project_name`, `stand_id`, `stand_name`, `size`, and `price`.
+Rows missing required fields are reported with clear error messages and skipped.
+
 ## Docker Compose
 
 To build and run the application with Docker Compose:

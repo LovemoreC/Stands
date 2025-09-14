@@ -35,7 +35,7 @@ def register_agents():
 def setup_data(admin_headers, agent_headers):
     project = {"id": 100, "name": "Proj"}
     client.post("/projects", json=project, headers=admin_headers)
-    stand = {"id": 100, "project_id": 100, "name": "Stand1"}
+    stand = {"id": 100, "project_id": 100, "name": "Stand1", "size": 100, "price": 1000}
     client.post("/stands", json=stand, headers=admin_headers)
     client.post(
         "/stands/100/mandate",
