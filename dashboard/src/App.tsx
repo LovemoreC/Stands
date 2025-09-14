@@ -5,6 +5,7 @@ import Projects from './pages/Projects';
 import Stands from './pages/Stands';
 import Mandates from './pages/Mandates';
 import Dashboard from './pages/Dashboard';
+import MultiStepForm from './pages/MultiStepForm';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -23,6 +24,7 @@ const App: React.FC = () => {
           {auth.role === 'agent' && (
             <>
               <Link to="/dashboard">Dashboard</Link> |{' '}
+              <Link to="/submit">New Submission</Link> |{' '}
             </>
           )}
           <button onClick={logout}>Logout</button>
@@ -59,6 +61,14 @@ const App: React.FC = () => {
           element={
             <ProtectedRoute roles={["agent"]}>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/submit"
+          element={
+            <ProtectedRoute roles={["agent"]}>
+              <MultiStepForm />
             </ProtectedRoute>
           }
         />
