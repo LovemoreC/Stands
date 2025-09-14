@@ -168,3 +168,37 @@ export async function recordDeposit(token: string, id: number, amount: number) {
   if (!res.ok) throw new Error('Failed to record deposit');
   return res.json();
 }
+
+export async function getLoanApplications(token: string, status?: string) {
+  const url = status ? `/loan-applications?status=${status}` : '/loan-applications';
+  const res = await fetch(url, { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load loan applications');
+  return res.json();
+}
+
+export async function decideLoanApplication(
+  token: string,
+  id: number,
+  decision: { decision: string; reason?: string }
+) {
+  const res = await fetch(`/loan-applications/${id}/decision`, {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify(decision),
+  });
+  if (!res.ok) throw new Error('Failed to decide loan application');
+  return res.json();
+}
+
+export async function generateAgreement(
+  token: string,
+  data: { id: number; loan_application_id: number; property_id: number }
+) {
+  const res = await fetch('/agreements/generate', {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to generate agreement');
+  return res.json();
+}

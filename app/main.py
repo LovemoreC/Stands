@@ -556,6 +556,8 @@ def submit_loan_application(
         )
     if not application.documents:
         raise HTTPException(status_code=400, detail="Documentation required")
+    if application.property_id and not repos.stands.get(application.property_id):
+        raise HTTPException(status_code=404, detail="Property not found")
     repos.loan_applications.add(application)
     repos.notifications.append(
         f"Loan application {application.id} submitted by {application.realtor}"
@@ -576,6 +578,18 @@ def get_loan_application(
     return application
 
 
+@app.get("/loan-applications", response_model=List[LoanApplication])
+def list_loan_applications(
+    status: Optional[SubmissionStatus] = None,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    apps = repos.loan_applications.list()
+    if status:
+        apps = [a for a in apps if a.status == status]
+    return apps
+
+
 @app.put("/loan-applications/{app_id}/decision", response_model=LoanApplication)
 def decide_loan_application(
     app_id: int,
@@ -590,6 +604,23 @@ def decide_loan_application(
     application.reason = decision.reason
     if decision.decision == LoanDecision.APPROVED:
         application.status = SubmissionStatus.COMPLETED
+        if application.property_id:
+            if repos.agreements.get(application.id):
+                raise HTTPException(status_code=400, detail="Agreement ID exists")
+            stand = repos.stands.get(application.property_id)
+            if stand:
+                content = f"Agreement for property {stand.name} with loan {application.id}"
+                timestamp = datetime.utcnow().isoformat()
+                agreement = Agreement(
+                    id=application.id,
+                    loan_application_id=application.id,
+                    property_id=application.property_id,
+                    realtor=application.realtor,
+                    document=content,
+                    versions=[content],
+                    audit_log=[f"{timestamp}: generated"],
+                )
+                repos.agreements.add(agreement)
     else:
         application.status = SubmissionStatus.REJECTED
     repos.loan_applications.add(application)

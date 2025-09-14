@@ -229,3 +229,62 @@ def test_account_opening_queue_listing():
     assert resp.status_code == 200
     ids = {r["id"] for r in resp.json()}
     assert ids == {10, 20}
+
+
+def test_loan_application_queue_listing_and_agreement_generation():
+    tokens = setup_agents()
+    admin_headers = {"X-Token": tokens["admin"]}
+    realtor_headers = {"X-Token": tokens["realtor"]}
+
+    client.post("/projects", json={"id": 1, "name": "P"}, headers=admin_headers)
+    client.post(
+        "/stands",
+        json={"id": 1, "project_id": 1, "name": "S", "size": 100, "price": 1000},
+        headers=admin_headers,
+    )
+
+    client.post(
+        "/account-openings",
+        json={"id": 1, "realtor": "realtor"},
+        headers=realtor_headers,
+    )
+    client.put(
+        "/account-openings/1/open",
+        json={"account_number": "A1", "deposit_threshold": 100},
+        headers=admin_headers,
+    )
+    client.post(
+        "/account-openings/1/deposit",
+        json={"amount": 100},
+        headers=admin_headers,
+    )
+
+    loan_app = {
+        "id": 10,
+        "realtor": "realtor",
+        "account_id": 1,
+        "documents": ["doc"],
+        "property_id": 1,
+    }
+    client.post("/loan-applications", json=loan_app, headers=realtor_headers)
+
+    resp = client.get(
+        "/loan-applications",
+        params={"status": SubmissionStatus.SUBMITTED.value},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1 and data[0]["id"] == 10
+
+    resp = client.put(
+        "/loan-applications/10/decision",
+        json={"decision": "approved", "reason": "ok"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == SubmissionStatus.COMPLETED.value
+
+    resp = client.get("/agreements/10", headers=admin_headers)
+    assert resp.status_code == 200
+    assert resp.json()["loan_application_id"] == 10
