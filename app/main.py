@@ -14,6 +14,9 @@ from .models import (
     StatusUpdate,
     AccountSetup,
     Deposit,
+    LoanApplication,
+    LoanDecisionUpdate,
+    LoanDecision,
 )
 
 app = FastAPI(title="Property Management API")
@@ -25,6 +28,7 @@ agents: Dict[str, Agent] = {}
 offers: Dict[int, Offer] = {}
 applications: Dict[int, PropertyApplication] = {}
 account_openings: Dict[int, AccountOpening] = {}
+loan_applications: Dict[int, LoanApplication] = {}
 notifications: List[str] = []
 
 
@@ -246,6 +250,54 @@ def record_deposit(req_id: int, deposit: Deposit, _: Agent = Depends(require_adm
         request.status = SubmissionStatus.COMPLETED
     account_openings[req_id] = request
     return request
+
+
+@app.post("/loan-applications", response_model=LoanApplication)
+def submit_loan_application(
+    application: LoanApplication, agent: Agent = Depends(get_current_agent)
+):
+    if application.id in loan_applications:
+        raise HTTPException(status_code=400, detail="Loan application ID exists")
+    if agent.username != application.realtor:
+        raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    if application.account_id not in account_openings:
+        raise HTTPException(status_code=404, detail="Account not found")
+    account = account_openings[application.account_id]
+    if account.status != SubmissionStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Deposits not sufficient for loan application")
+    if not application.documents:
+        raise HTTPException(status_code=400, detail="Documentation required")
+    loan_applications[application.id] = application
+    notifications.append(
+        f"Loan application {application.id} submitted by {application.realtor}"
+    )
+    return application
+
+
+@app.get("/loan-applications/{app_id}", response_model=LoanApplication)
+def get_loan_application(app_id: int, agent: Agent = Depends(get_current_agent)):
+    if app_id not in loan_applications:
+        raise HTTPException(status_code=404, detail="Loan application not found")
+    application = loan_applications[app_id]
+    _ensure_owner(application.realtor, agent)
+    return application
+
+
+@app.put("/loan-applications/{app_id}/decision", response_model=LoanApplication)
+def decide_loan_application(
+    app_id: int, decision: LoanDecisionUpdate, _: Agent = Depends(require_admin)
+):
+    if app_id not in loan_applications:
+        raise HTTPException(status_code=404, detail="Loan application not found")
+    application = loan_applications[app_id]
+    application.decision = decision.decision
+    application.reason = decision.reason
+    if decision.decision == LoanDecision.APPROVED:
+        application.status = SubmissionStatus.COMPLETED
+    else:
+        application.status = SubmissionStatus.REJECTED
+    loan_applications[app_id] = application
+    return application
 
 
 @app.get("/notifications", response_model=List[str])
