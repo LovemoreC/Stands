@@ -2,36 +2,15 @@ import sys
 sys.path.append('.')
 
 from fastapi.testclient import TestClient
-from app.main import (
-    app,
-    projects,
-    stands,
-    agents,
-    offers,
-    applications,
-    account_openings,
-    loan_applications,
-    notifications,
-    agreements,
-    customer_loan_accounts,
-    audit_log,
-)
+from app.main import app
+from app.database import drop_db, init_db
 
 client = TestClient(app)
 
 
 def reset_state():
-    projects.clear()
-    stands.clear()
-    agents.clear()
-    offers.clear()
-    applications.clear()
-    account_openings.clear()
-    loan_applications.clear()
-    notifications.clear()
-    agreements.clear()
-    customer_loan_accounts.clear()
-    audit_log.clear()
+    drop_db()
+    init_db()
 
 
 def register_agents():
