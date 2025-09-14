@@ -1,5 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File
-from typing import List
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File, Response
+from typing import List, Optional
 from datetime import datetime
 import secrets
 import hashlib
@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from openpyxl import load_workbook
 from .database import init_db, get_session, SessionLocal
 from .repositories import Repositories
+from .reporting import generate_properties_report
 from .models import (
     Project,
     Stand,
@@ -330,6 +331,19 @@ def import_properties(
         imported += 1
 
     return ImportResult(imported=imported, errors=errors)
+
+
+# Reporting endpoints
+
+
+@app.get("/reports/properties")
+def properties_report(
+    status: Optional[PropertyStatus] = None,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    csv_data = generate_properties_report(repos, status)
+    return Response(content=csv_data, media_type="text/csv")
 
 
 # ---- Submission endpoints ----
