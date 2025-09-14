@@ -49,6 +49,11 @@ class SubmissionStatus(str, Enum):
     REJECTED = "rejected"
 
 
+class LoanDecision(str, Enum):
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class Offer(BaseModel):
     id: int
     realtor: str
@@ -75,6 +80,16 @@ class AccountOpening(BaseModel):
     deposits: List[float] = Field(default_factory=list)
 
 
+class LoanApplication(BaseModel):
+    id: int
+    realtor: str
+    account_id: int
+    documents: List[str] = Field(default_factory=list)
+    status: SubmissionStatus = SubmissionStatus.SUBMITTED
+    decision: Optional[LoanDecision] = None
+    reason: Optional[str] = None
+
+
 class StatusUpdate(BaseModel):
     status: SubmissionStatus
 
@@ -86,3 +101,8 @@ class AccountSetup(BaseModel):
 
 class Deposit(BaseModel):
     amount: float
+
+
+class LoanDecisionUpdate(BaseModel):
+    decision: LoanDecision
+    reason: Optional[str] = None
