@@ -106,3 +106,24 @@ class Deposit(BaseModel):
 class LoanDecisionUpdate(BaseModel):
     decision: LoanDecision
     reason: Optional[str] = None
+
+
+class AgreementCreate(BaseModel):
+    id: int
+    loan_application_id: int
+    property_id: int
+
+
+class AgreementUpload(BaseModel):
+    document: str
+
+
+class Agreement(BaseModel):
+    id: int
+    loan_application_id: int
+    property_id: int
+    document: str
+    versions: List[str] = Field(default_factory=list)
+    bank_signature: Optional[str] = None
+    customer_signature: Optional[str] = None
+    audit_log: List[str] = Field(default_factory=list)

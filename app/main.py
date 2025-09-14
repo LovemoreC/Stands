@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
 from typing import Dict, List
+from datetime import datetime
 from .models import (
     Project,
     Stand,
@@ -17,6 +18,9 @@ from .models import (
     LoanApplication,
     LoanDecisionUpdate,
     LoanDecision,
+    Agreement,
+    AgreementCreate,
+    AgreementUpload,
 )
 
 app = FastAPI(title="Property Management API")
@@ -30,6 +34,7 @@ applications: Dict[int, PropertyApplication] = {}
 account_openings: Dict[int, AccountOpening] = {}
 loan_applications: Dict[int, LoanApplication] = {}
 notifications: List[str] = []
+agreements: Dict[int, Agreement] = {}
 
 
 def get_current_agent(x_token: str = Header(...)) -> Agent:
@@ -303,3 +308,77 @@ def decide_loan_application(
 @app.get("/notifications", response_model=List[str])
 def list_notifications(_: Agent = Depends(require_admin)):
     return notifications
+
+
+# ---- Agreement endpoints ----
+
+
+@app.post("/agreements/generate", response_model=Agreement)
+def generate_agreement(
+    data: AgreementCreate, _: Agent = Depends(require_admin)
+):
+    if data.id in agreements:
+        raise HTTPException(status_code=400, detail="Agreement ID exists")
+    if data.loan_application_id not in loan_applications:
+        raise HTTPException(status_code=404, detail="Loan application not found")
+    if data.property_id not in stands:
+        raise HTTPException(status_code=404, detail="Property not found")
+    loan = loan_applications[data.loan_application_id]
+    stand = stands[data.property_id]
+    content = f"Agreement for property {stand.name} with loan {loan.id}"
+    timestamp = datetime.utcnow().isoformat()
+    agreement = Agreement(
+        id=data.id,
+        loan_application_id=data.loan_application_id,
+        property_id=data.property_id,
+        document=content,
+        versions=[content],
+        audit_log=[f"{timestamp}: generated"],
+    )
+    agreements[data.id] = agreement
+    return agreement
+
+
+@app.get("/agreements/{agreement_id}", response_model=Agreement)
+def get_agreement(agreement_id: int, _: Agent = Depends(get_current_agent)):
+    if agreement_id not in agreements:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    return agreements[agreement_id]
+
+
+@app.put("/agreements/{agreement_id}/sign", response_model=Agreement)
+def sign_agreement(agreement_id: int, agent: Agent = Depends(get_current_agent)):
+    if agreement_id not in agreements:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    agreement = agreements[agreement_id]
+    timestamp = datetime.utcnow().isoformat()
+    if agent.role == "admin":
+        agreement.bank_signature = f"signed by {agent.username} at {timestamp}"
+        agreement.audit_log.append(
+            f"{timestamp}: bank signed by {agent.username}"
+        )
+    else:
+        agreement.customer_signature = f"signed by {agent.username} at {timestamp}"
+        agreement.audit_log.append(
+            f"{timestamp}: customer signed by {agent.username}"
+        )
+    agreements[agreement_id] = agreement
+    return agreement
+
+
+@app.post("/agreements/{agreement_id}/upload", response_model=Agreement)
+def upload_agreement(
+    agreement_id: int,
+    upload: AgreementUpload,
+    agent: Agent = Depends(get_current_agent),
+):
+    if agreement_id not in agreements:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    agreement = agreements[agreement_id]
+    agreement.versions.append(upload.document)
+    agreement.document = upload.document
+    timestamp = datetime.utcnow().isoformat()
+    role = "bank" if agent.role == "admin" else "customer"
+    agreement.audit_log.append(f"{timestamp}: {role} uploaded new version")
+    agreements[agreement_id] = agreement
+    return agreement
