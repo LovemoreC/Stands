@@ -12,14 +12,25 @@ client = TestClient(app)
 def setup_agents():
     drop_db()
     init_db()
-    client.post("/agents", json={"username": "admin", "role": "admin"})
-    client.post("/agents", json={"username": "realtor", "role": "agent"})
+    client.post(
+        "/agents", json={"username": "admin", "role": "admin", "password": "a"}
+    )
+    client.post(
+        "/agents", json={"username": "realtor", "role": "agent", "password": "b"}
+    )
+    admin_token = client.post(
+        "/login", json={"username": "admin", "password": "a"}
+    ).json()["token"]
+    realtor_token = client.post(
+        "/login", json={"username": "realtor", "password": "b"}
+    ).json()["token"]
+    return {"admin": admin_token, "realtor": realtor_token}
 
 
 def test_submissions_and_status_updates():
-    setup_agents()
-    admin_headers = {"X-Token": "admin"}
-    realtor_headers = {"X-Token": "realtor"}
+    tokens = setup_agents()
+    admin_headers = {"X-Token": tokens["admin"]}
+    realtor_headers = {"X-Token": tokens["realtor"]}
 
     # Submit offer
     offer = {"id": 1, "realtor": "realtor", "property_id": 1}
@@ -68,9 +79,9 @@ def test_submissions_and_status_updates():
 
 
 def test_account_opening_deposit_tracking():
-    setup_agents()
-    admin_headers = {"X-Token": "admin"}
-    realtor_headers = {"X-Token": "realtor"}
+    tokens = setup_agents()
+    admin_headers = {"X-Token": tokens["admin"]}
+    realtor_headers = {"X-Token": tokens["realtor"]}
 
     account = {"id": 2, "realtor": "realtor"}
     resp = client.post("/account-openings", json=account, headers=realtor_headers)
@@ -103,9 +114,9 @@ def test_account_opening_deposit_tracking():
 
 
 def test_loan_application_flow():
-    setup_agents()
-    admin_headers = {"X-Token": "admin"}
-    realtor_headers = {"X-Token": "realtor"}
+    tokens = setup_agents()
+    admin_headers = {"X-Token": tokens["admin"]}
+    realtor_headers = {"X-Token": tokens["realtor"]}
 
     account = {"id": 3, "realtor": "realtor"}
     resp = client.post("/account-openings", json=account, headers=realtor_headers)

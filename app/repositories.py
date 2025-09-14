@@ -86,7 +86,7 @@ class SimpleRepository:
         self.session.query(Record).filter_by(store=self.store).delete()
         self.session.commit()
 from .models import (
-    Agent,
+    AgentInDB,
     Project,
     Stand,
     Offer,
@@ -99,7 +99,7 @@ from .models import (
 
 class Repositories:
     def __init__(self, session: Session):
-        self.agents = Repository(session, 'agents', Agent)
+        self.agents = Repository(session, 'agents', AgentInDB)
         self.projects = Repository(session, 'projects', Project)
         self.stands = Repository(session, 'stands', Stand)
         self.offers = Repository(session, 'offers', Offer)
@@ -110,3 +110,4 @@ class Repositories:
         self.agreements = Repository(session, 'agreements', Agreement)
         self.customer_loan_accounts = SimpleRepository(session, 'customer_loan_accounts')
         self.audit_log = ListRepository(session, 'audit_log')
+        self.tokens = SimpleRepository(session, 'tokens')

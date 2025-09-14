@@ -49,6 +49,14 @@ class Agent(BaseModel):
     role: AgentRole
 
 
+class AgentCreate(Agent):
+    password: str
+
+
+class AgentInDB(Agent):
+    password_hash: str
+
+
 class SubmissionStatus(str, Enum):
     SUBMITTED = "submitted"
     IN_PROGRESS = "in_progress"

@@ -1,6 +1,10 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from typing import List
 from datetime import datetime
+import secrets
+import hashlib
+import hmac
+from pydantic import BaseModel
 from .database import init_db, get_session, SessionLocal
 from .repositories import Repositories
 from .models import (
@@ -9,6 +13,8 @@ from .models import (
     PropertyStatus,
     Mandate,
     Agent,
+    AgentCreate,
+    AgentInDB,
     AgentRole,
     MandateStatus,
     SubmissionStatus,
@@ -35,13 +41,28 @@ def get_repositories(session=Depends(get_session)) -> Repositories:
     return Repositories(session)
 
 
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    return hmac.compare_digest(hash_password(password), hashed)
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def get_current_agent(
     x_token: str = Header(...), repos: Repositories = Depends(get_repositories)
 ) -> Agent:
-    agent = repos.agents.get(x_token)
-    if not agent:
+    username = repos.tokens.get(hash_token(x_token))
+    if not username:
         raise HTTPException(status_code=401, detail="Invalid authentication token")
-    return agent
+    agent_in_db = repos.agents.get(username)
+    if not agent_in_db:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    return Agent(username=agent_in_db.username, role=agent_in_db.role)
 
 
 def require_admin(agent: Agent = Depends(get_current_agent)) -> Agent:
@@ -63,9 +84,9 @@ async def log_request(request: Request, call_next):
     repos = Repositories(session)
     username = "anonymous"
     if token:
-        agent = repos.agents.get(token)
-        if agent:
-            username = agent.username
+        uname = repos.tokens.get(hash_token(token))
+        if uname:
+            username = uname
     timestamp = datetime.utcnow().isoformat()
     response = await call_next(request)
     repos.audit_log.append(
@@ -76,13 +97,30 @@ async def log_request(request: Request, call_next):
 
 
 @app.post("/agents", response_model=Agent)
-def create_agent(agent: Agent, repos: Repositories = Depends(get_repositories)):
+def create_agent(agent: AgentCreate, repos: Repositories = Depends(get_repositories)):
     if repos.agents.get(agent.username):
         raise HTTPException(status_code=400, detail="Agent exists")
     if agent.role not in AgentRole:
         raise HTTPException(status_code=400, detail="Unknown role")
-    repos.agents.add(agent)
-    return agent
+    password_hash = hash_password(agent.password)
+    agent_db = AgentInDB(username=agent.username, role=agent.role, password_hash=password_hash)
+    repos.agents.add(agent_db)
+    return Agent(username=agent.username, role=agent.role)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/login")
+def login(data: LoginRequest, repos: Repositories = Depends(get_repositories)):
+    agent = repos.agents.get(data.username)
+    if not agent or not verify_password(data.password, agent.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = secrets.token_hex(16)
+    repos.tokens.set(hash_token(token), agent.username)
+    return {"token": token}
 
 
 @app.post("/projects", response_model=Project)

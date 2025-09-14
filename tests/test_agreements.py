@@ -11,13 +11,18 @@ client = TestClient(app)
 
 def setup_data():
     reset_state()
-    client.post("/agents", json={"username": "admin", "role": "admin"})
-    client.post("/agents", json={"username": "realtor", "role": "agent"})
-    client.post("/agents", json={"username": "intruder", "role": "agent"})
+    def create_and_login(username, role):
+        client.post(
+            "/agents", json={"username": username, "role": role, "password": username}
+        )
+        token = client.post(
+            "/login", json={"username": username, "password": username}
+        ).json()["token"]
+        return {"X-Token": token}
 
-    admin_headers = {"X-Token": "admin"}
-    realtor_headers = {"X-Token": "realtor"}
-    intruder_headers = {"X-Token": "intruder"}
+    admin_headers = create_and_login("admin", "admin")
+    realtor_headers = create_and_login("realtor", "agent")
+    intruder_headers = create_and_login("intruder", "agent")
 
     client.post("/projects", json={"id": 1, "name": "Proj"}, headers=admin_headers)
     client.post(

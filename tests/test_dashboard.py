@@ -14,10 +14,22 @@ def reset_state():
 
 
 def register_agents():
-    client.post("/agents", json={"username": "admin", "role": "admin"})
-    client.post("/agents", json={"username": "manager", "role": "manager"})
-    client.post("/agents", json={"username": "compliance", "role": "compliance"})
-    client.post("/agents", json={"username": "agentA", "role": "agent"})
+    creds = {
+        "admin": "admin",
+        "manager": "manager",
+        "compliance": "compliance",
+        "agentA": "agent",
+    }
+    tokens = {}
+    for user, role in creds.items():
+        client.post(
+            "/agents", json={"username": user, "role": role, "password": user}
+        )
+        token = client.post(
+            "/login", json={"username": user, "password": user}
+        ).json()["token"]
+        tokens[user] = token
+    return tokens
 
 
 def setup_data(admin_headers, agent_headers):
@@ -65,11 +77,11 @@ def setup_data(admin_headers, agent_headers):
 
 def test_dashboards_and_audit_log():
     reset_state()
-    register_agents()
-    admin_headers = {"X-Token": "admin"}
-    manager_headers = {"X-Token": "manager"}
-    compliance_headers = {"X-Token": "compliance"}
-    agent_headers = {"X-Token": "agentA"}
+    tokens = register_agents()
+    admin_headers = {"X-Token": tokens["admin"]}
+    manager_headers = {"X-Token": tokens["manager"]}
+    compliance_headers = {"X-Token": tokens["compliance"]}
+    agent_headers = {"X-Token": tokens["agentA"]}
 
     setup_data(admin_headers, agent_headers)
 

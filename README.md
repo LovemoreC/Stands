@@ -18,6 +18,21 @@ uvicorn app.main:app --reload
 
 Interactive docs will be available at `http://127.0.0.1:8000/docs`.
 
+## Authentication
+
+Agents are created with a password hash:
+
+```
+POST /agents {"username": "alice", "role": "admin", "password": "secret"}
+```
+
+Log in to receive an API token and use it in the `X-Token` header:
+
+```
+POST /login {"username": "alice", "password": "secret"}
+X-Token: <token from login>
+```
+
 ## Tests
 
 ```
