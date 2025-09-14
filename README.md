@@ -18,6 +18,16 @@ uvicorn app.main:app --reload
 
 Interactive docs will be available at `http://127.0.0.1:8000/docs`.
 
+## Docker Compose
+
+To build and run the application with Docker Compose:
+
+```bash
+ docker-compose up --build
+```
+
+This will build the image from the included `Dockerfile`, start the `web` service on port 8000, and persist the SQLite database in a named volume (`sqlite_data`). The environment variable `DATABASE_URL=sqlite:///app.db` is provided to the container.
+
 ## Authentication
 
 Agents are created with a password hash:
