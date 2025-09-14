@@ -17,13 +17,24 @@ def setup_function():
 
 def test_auth_mandate_and_available_view():
     # register agents
-    resp = client.post("/agents", json={"username": "admin", "role": "admin"})
+    resp = client.post(
+        "/agents", json={"username": "admin", "role": "admin", "password": "a"}
+    )
     assert resp.status_code == 200
-    resp = client.post("/agents", json={"username": "agentA", "role": "agent"})
+    resp = client.post(
+        "/agents", json={"username": "agentA", "role": "agent", "password": "b"}
+    )
     assert resp.status_code == 200
 
-    admin_headers = {"X-Token": "admin"}
-    agent_headers = {"X-Token": "agentA"}
+    admin_token = client.post(
+        "/login", json={"username": "admin", "password": "a"}
+    ).json()["token"]
+    agent_token = client.post(
+        "/login", json={"username": "agentA", "password": "b"}
+    ).json()["token"]
+
+    admin_headers = {"X-Token": admin_token}
+    agent_headers = {"X-Token": agent_token}
 
     # Create project as admin
     project = {"id": 1, "name": "Project A"}
