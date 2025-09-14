@@ -4,4 +4,6 @@ pydantic
 pytest
 httpx
 sqlalchemy
+openpyxl
+python-multipart
 

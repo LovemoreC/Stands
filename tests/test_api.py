@@ -42,16 +42,27 @@ def test_auth_mandate_and_available_view():
     assert resp.status_code == 200
 
     # Create stand as admin
-    stand = {"id": 1, "project_id": 1, "name": "Stand 1"}
+    stand = {"id": 1, "project_id": 1, "name": "Stand 1", "size": 100, "price": 1000}
     resp = client.post("/stands", json=stand, headers=admin_headers)
     assert resp.status_code == 200
 
     # Agent cannot create stand
-    resp = client.post("/stands", json={"id": 2, "project_id": 1, "name": "Stand 2"}, headers=agent_headers)
+    resp = client.post(
+        "/stands",
+        json={"id": 2, "project_id": 1, "name": "Stand 2", "size": 100, "price": 1000},
+        headers=agent_headers,
+    )
     assert resp.status_code == 403
 
     # Update stand as admin
-    stand_update = {"id": 1, "project_id": 1, "name": "Stand 1 Updated", "status": "available"}
+    stand_update = {
+        "id": 1,
+        "project_id": 1,
+        "name": "Stand 1 Updated",
+        "status": "available",
+        "size": 100,
+        "price": 1000,
+    }
     resp = client.put("/stands/1", json=stand_update, headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["name"] == "Stand 1 Updated"

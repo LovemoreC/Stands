@@ -1,10 +1,13 @@
-from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File
 from typing import List
 from datetime import datetime
 import secrets
 import hashlib
 import hmac
+import csv
+from io import BytesIO
 from pydantic import BaseModel
+from openpyxl import load_workbook
 from .database import init_db, get_session, SessionLocal
 from .repositories import Repositories
 from .models import (
@@ -111,6 +114,11 @@ def create_agent(agent: AgentCreate, repos: Repositories = Depends(get_repositor
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class ImportResult(BaseModel):
+    imported: int
+    errors: List[str]
 
 
 @app.post("/login")
@@ -252,6 +260,76 @@ def get_stand(
     if not stand:
         raise HTTPException(status_code=404, detail="Stand not found")
     return stand
+
+
+@app.post("/import/properties", response_model=ImportResult)
+def import_properties(
+    file: UploadFile = File(...),
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    filename = file.filename or ""
+    content = file.file.read()
+    rows = []
+    if filename.endswith(".csv"):
+        try:
+            text = content.decode("utf-8")
+            reader = csv.DictReader(text.splitlines())
+            rows = list(reader)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid CSV file")
+    elif filename.endswith(".xls") or filename.endswith(".xlsx"):
+        try:
+            wb = load_workbook(BytesIO(content), read_only=True)
+            ws = wb.active
+            headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                rows.append(dict(zip(headers, row)))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid Excel file")
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    imported = 0
+    errors: List[str] = []
+    for idx, row in enumerate(rows, start=2):
+        try:
+            project_id = int(row.get("project_id"))
+            project_name = row.get("project_name")
+            stand_id = int(row.get("stand_id"))
+            stand_name = row.get("stand_name") or ""
+            size = float(row.get("size"))
+            price = float(row.get("price"))
+            if not project_name:
+                raise ValueError("project_name is required")
+        except (TypeError, ValueError) as e:
+            errors.append(f"Row {idx}: {e}")
+            continue
+
+        project = repos.projects.get(project_id)
+        if not project:
+            repos.projects.add(Project(id=project_id, name=project_name))
+        elif project.name != project_name:
+            errors.append(
+                f"Row {idx}: project name mismatch for ID {project_id}"
+            )
+            continue
+
+        if repos.stands.get(stand_id):
+            errors.append(f"Row {idx}: stand ID {stand_id} exists")
+            continue
+
+        stand = Stand(
+            id=stand_id,
+            project_id=project_id,
+            name=stand_name,
+            size=size,
+            price=price,
+        )
+        repos.stands.add(stand)
+        imported += 1
+
+    return ImportResult(imported=imported, errors=errors)
 
 
 # ---- Submission endpoints ----

@@ -33,6 +33,8 @@ class Stand(BaseModel):
     id: int
     project_id: int
     name: str
+    size: float = Field(..., gt=0)
+    price: float = Field(..., gt=0)
     status: PropertyStatus = PropertyStatus.AVAILABLE
     mandate: Optional[Mandate] = None
 

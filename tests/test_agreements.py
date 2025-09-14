@@ -27,7 +27,7 @@ def setup_data():
     client.post("/projects", json={"id": 1, "name": "Proj"}, headers=admin_headers)
     client.post(
         "/stands",
-        json={"id": 1, "project_id": 1, "name": "Stand1"},
+        json={"id": 1, "project_id": 1, "name": "Stand1", "size": 100, "price": 1000},
         headers=admin_headers,
     )
 
@@ -109,7 +109,14 @@ def test_agreement_flow():
 
     resp = client.put(
         "/stands/1",
-        json={"id": 1, "project_id": 1, "name": "New", "status": "available"},
+        json={
+            "id": 1,
+            "project_id": 1,
+            "name": "New",
+            "status": "available",
+            "size": 100,
+            "price": 1000,
+        },
         headers=admin_headers,
     )
     assert resp.status_code == 400
