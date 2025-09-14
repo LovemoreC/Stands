@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Projects from './pages/Projects';
 import Stands from './pages/Stands';
 import Mandates from './pages/Mandates';
+import Dashboard from './pages/Dashboard';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -12,9 +13,18 @@ const App: React.FC = () => {
     <div>
       {auth && (
         <nav>
-          <Link to="/projects">Projects</Link> |{' '}
-          <Link to="/stands">Stands</Link> |{' '}
-          <Link to="/mandates">Mandates</Link> |{' '}
+          {auth.role === 'admin' && (
+            <>
+              <Link to="/projects">Projects</Link> |{' '}
+              <Link to="/stands">Stands</Link> |{' '}
+              <Link to="/mandates">Mandates</Link> |{' '}
+            </>
+          )}
+          {auth.role === 'agent' && (
+            <>
+              <Link to="/dashboard">Dashboard</Link> |{' '}
+            </>
+          )}
           <button onClick={logout}>Logout</button>
         </nav>
       )}
@@ -44,7 +54,29 @@ const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route path="*" element={<Navigate to={auth ? '/projects' : '/login'} replace />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute roles={["agent"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to={
+                auth
+                  ? auth.role === 'agent'
+                    ? '/dashboard'
+                    : '/projects'
+                  : '/login'
+              }
+              replace
+            />
+          }
+        />
       </Routes>
     </div>
   );

@@ -4,11 +4,12 @@ import { Navigate } from 'react-router-dom';
 export interface Auth {
   token: string;
   role: string;
+  username: string;
 }
 
 interface AuthContextType {
   auth: Auth | null;
-  login: (token: string, role: string) => void;
+  login: (token: string, role: string, username: string) => void;
   logout: () => void;
 }
 
@@ -20,7 +21,8 @@ const AuthContext = React.createContext<AuthContextType>({
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [auth, setAuth] = React.useState<Auth | null>(null);
-  const login = (token: string, role: string) => setAuth({ token, role });
+  const login = (token: string, role: string, username: string) =>
+    setAuth({ token, role, username });
   const logout = () => setAuth(null);
   return (
     <AuthContext.Provider value={{ auth, login, logout }}>

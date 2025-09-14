@@ -63,3 +63,42 @@ export async function assignMandate(token: string, standId: number, agent: strin
   if (!res.ok) throw new Error('Failed to assign mandate');
   return res.json();
 }
+
+export async function submitOffer(
+  token: string,
+  offer: { id: number; realtor: string; property_id: number; details?: string }
+) {
+  const res = await fetch('/offers', {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(offer),
+  });
+  if (!res.ok) throw new Error('Failed to submit offer');
+  return res.json();
+}
+
+export async function submitAccountOpening(
+  token: string,
+  req: { id: number; realtor: string; details?: string }
+) {
+  const res = await fetch('/account-openings', {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error('Failed to submit account opening');
+  return res.json();
+}
+
+export async function submitPropertyApplication(
+  token: string,
+  app: { id: number; realtor: string; property_id: number; details?: string }
+) {
+  const res = await fetch('/property-applications', {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(app),
+  });
+  if (!res.ok) throw new Error('Failed to submit property application');
+  return res.json();
+}

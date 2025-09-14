@@ -129,7 +129,7 @@ def login(data: LoginRequest, repos: Repositories = Depends(get_repositories)):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     token = secrets.token_hex(16)
     repos.tokens.set(hash_token(token), agent.username)
-    return {"token": token}
+    return {"token": token, "role": agent.role, "username": agent.username}
 
 
 @app.post("/projects", response_model=Project)
