@@ -21,6 +21,7 @@ from .models import (
     Agreement,
     AgreementCreate,
     AgreementUpload,
+    AgreementExecution,
 )
 
 app = FastAPI(title="Property Management API")
@@ -35,6 +36,7 @@ account_openings: Dict[int, AccountOpening] = {}
 loan_applications: Dict[int, LoanApplication] = {}
 notifications: List[str] = []
 agreements: Dict[int, Agreement] = {}
+customer_loan_accounts: Dict[str, List[str]] = {}
 
 
 def get_current_agent(x_token: str = Header(...)) -> Agent:
@@ -84,6 +86,9 @@ def create_stand(stand: Stand, _: Agent = Depends(require_admin)):
 def update_stand(stand_id: int, stand: Stand, _: Agent = Depends(require_admin)):
     if stand_id not in stands:
         raise HTTPException(status_code=404, detail="Stand not found")
+    existing = stands[stand_id]
+    if existing.status == PropertyStatus.SOLD:
+        raise HTTPException(status_code=400, detail="Stand already sold")
     if stand.project_id not in projects:
         raise HTTPException(status_code=404, detail="Project not found")
     stands[stand_id] = stand
@@ -95,6 +100,8 @@ def archive_stand(stand_id: int, _: Agent = Depends(require_admin)):
     if stand_id not in stands:
         raise HTTPException(status_code=404, detail="Stand not found")
     stand = stands[stand_id]
+    if stand.status == PropertyStatus.SOLD:
+        raise HTTPException(status_code=400, detail="Stand already sold")
     stand.status = PropertyStatus.ARCHIVED
     stands[stand_id] = stand
     return stand
@@ -105,6 +112,8 @@ def assign_mandate(stand_id: int, mandate: Mandate, _: Agent = Depends(require_a
     if stand_id not in stands:
         raise HTTPException(status_code=404, detail="Stand not found")
     stand = stands[stand_id]
+    if stand.status == PropertyStatus.SOLD:
+        raise HTTPException(status_code=400, detail="Stand already sold")
     stand.mandate = mandate
     stand.mandate.status = MandateStatus.PENDING
     stands[stand_id] = stand
@@ -116,6 +125,8 @@ def accept_mandate(stand_id: int, agent: Agent = Depends(get_current_agent)):
     if stand_id not in stands:
         raise HTTPException(status_code=404, detail="Stand not found")
     stand = stands[stand_id]
+    if stand.status == PropertyStatus.SOLD:
+        raise HTTPException(status_code=400, detail="Stand already sold")
     if not stand.mandate or stand.mandate.agent != agent.username:
         raise HTTPException(status_code=403, detail="Not authorized to accept this mandate")
     stand.mandate.status = MandateStatus.ACCEPTED
@@ -381,4 +392,31 @@ def upload_agreement(
     role = "bank" if agent.role == "admin" else "customer"
     agreement.audit_log.append(f"{timestamp}: {role} uploaded new version")
     agreements[agreement_id] = agreement
+    return agreement
+
+
+@app.put("/agreements/{agreement_id}/execute", response_model=Agreement)
+def execute_agreement(
+    agreement_id: int,
+    execution: AgreementExecution,
+    _: Agent = Depends(require_admin),
+):
+    if agreement_id not in agreements:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    agreement = agreements[agreement_id]
+    if not agreement.bank_signature or not agreement.customer_signature:
+        raise HTTPException(status_code=400, detail="Agreement not fully signed")
+    loan_application = loan_applications[agreement.loan_application_id]
+    loan_application.loan_account_number = execution.loan_account_number
+    loan_applications[agreement.loan_application_id] = loan_application
+    realtor = loan_application.realtor
+    customer_loan_accounts.setdefault(realtor, []).append(
+        execution.loan_account_number
+    )
+    stand = stands[agreement.property_id]
+    stand.status = PropertyStatus.SOLD
+    stands[agreement.property_id] = stand
+    notifications.append(
+        f"Agreement {agreement_id} executed; notify Loan Accounts Opening Team"
+    )
     return agreement
