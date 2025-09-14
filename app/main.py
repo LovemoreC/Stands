@@ -7,6 +7,11 @@ from .models import (
     Mandate,
     Agent,
     MandateStatus,
+    SubmissionStatus,
+    Offer,
+    PropertyApplication,
+    AccountOpening,
+    StatusUpdate,
 )
 
 app = FastAPI(title="Property Management API")
@@ -15,6 +20,10 @@ app = FastAPI(title="Property Management API")
 projects: Dict[int, Project] = {}
 stands: Dict[int, Stand] = {}
 agents: Dict[str, Agent] = {}
+offers: Dict[int, Offer] = {}
+applications: Dict[int, PropertyApplication] = {}
+account_openings: Dict[int, AccountOpening] = {}
+notifications: List[str] = []
 
 
 def get_current_agent(x_token: str = Header(...)) -> Agent:
@@ -113,3 +122,106 @@ def available_stands(agent: Agent = Depends(get_current_agent)):
             if s.mandate and s.mandate.agent == agent.username and s.mandate.status == MandateStatus.ACCEPTED
         ]
     return result
+
+
+# ---- Submission endpoints ----
+
+
+def _ensure_owner(obj_realtor: str, agent: Agent):
+    if agent.role != "admin" and obj_realtor != agent.username:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+
+@app.post("/offers", response_model=Offer)
+def submit_offer(offer: Offer, agent: Agent = Depends(get_current_agent)):
+    if offer.id in offers:
+        raise HTTPException(status_code=400, detail="Offer ID exists")
+    if agent.username != offer.realtor:
+        raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    offers[offer.id] = offer
+    notifications.append(f"Offer {offer.id} submitted by {offer.realtor}")
+    return offer
+
+
+@app.get("/offers/{offer_id}", response_model=Offer)
+def get_offer(offer_id: int, agent: Agent = Depends(get_current_agent)):
+    if offer_id not in offers:
+        raise HTTPException(status_code=404, detail="Offer not found")
+    offer = offers[offer_id]
+    _ensure_owner(offer.realtor, agent)
+    return offer
+
+
+@app.put("/offers/{offer_id}/status", response_model=Offer)
+def update_offer_status(offer_id: int, update: StatusUpdate, _: Agent = Depends(require_admin)):
+    if offer_id not in offers:
+        raise HTTPException(status_code=404, detail="Offer not found")
+    offer = offers[offer_id]
+    offer.status = update.status
+    offers[offer_id] = offer
+    return offer
+
+
+@app.post("/property-applications", response_model=PropertyApplication)
+def submit_property_application(application: PropertyApplication, agent: Agent = Depends(get_current_agent)):
+    if application.id in applications:
+        raise HTTPException(status_code=400, detail="Application ID exists")
+    if agent.username != application.realtor:
+        raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    applications[application.id] = application
+    notifications.append(f"Property application {application.id} submitted by {application.realtor}")
+    return application
+
+
+@app.get("/property-applications/{app_id}", response_model=PropertyApplication)
+def get_property_application(app_id: int, agent: Agent = Depends(get_current_agent)):
+    if app_id not in applications:
+        raise HTTPException(status_code=404, detail="Application not found")
+    application = applications[app_id]
+    _ensure_owner(application.realtor, agent)
+    return application
+
+
+@app.put("/property-applications/{app_id}/status", response_model=PropertyApplication)
+def update_property_application_status(app_id: int, update: StatusUpdate, _: Agent = Depends(require_admin)):
+    if app_id not in applications:
+        raise HTTPException(status_code=404, detail="Application not found")
+    application = applications[app_id]
+    application.status = update.status
+    applications[app_id] = application
+    return application
+
+
+@app.post("/account-openings", response_model=AccountOpening)
+def submit_account_opening(request: AccountOpening, agent: Agent = Depends(get_current_agent)):
+    if request.id in account_openings:
+        raise HTTPException(status_code=400, detail="Request ID exists")
+    if agent.username != request.realtor:
+        raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    account_openings[request.id] = request
+    notifications.append(f"Account opening {request.id} submitted by {request.realtor}")
+    return request
+
+
+@app.get("/account-openings/{req_id}", response_model=AccountOpening)
+def get_account_opening(req_id: int, agent: Agent = Depends(get_current_agent)):
+    if req_id not in account_openings:
+        raise HTTPException(status_code=404, detail="Request not found")
+    request = account_openings[req_id]
+    _ensure_owner(request.realtor, agent)
+    return request
+
+
+@app.put("/account-openings/{req_id}/status", response_model=AccountOpening)
+def update_account_opening_status(req_id: int, update: StatusUpdate, _: Agent = Depends(require_admin)):
+    if req_id not in account_openings:
+        raise HTTPException(status_code=404, detail="Request not found")
+    request = account_openings[req_id]
+    request.status = update.status
+    account_openings[req_id] = request
+    return request
+
+
+@app.get("/notifications", response_model=List[str])
+def list_notifications(_: Agent = Depends(require_admin)):
+    return notifications

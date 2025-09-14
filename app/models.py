@@ -39,3 +39,37 @@ class Stand(BaseModel):
 class Agent(BaseModel):
     username: str
     role: str
+
+
+class SubmissionStatus(str, Enum):
+    SUBMITTED = "submitted"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    REJECTED = "rejected"
+
+
+class Offer(BaseModel):
+    id: int
+    realtor: str
+    property_id: int
+    details: Optional[str] = None
+    status: SubmissionStatus = SubmissionStatus.SUBMITTED
+
+
+class PropertyApplication(BaseModel):
+    id: int
+    realtor: str
+    property_id: int
+    details: Optional[str] = None
+    status: SubmissionStatus = SubmissionStatus.SUBMITTED
+
+
+class AccountOpening(BaseModel):
+    id: int
+    realtor: str
+    details: Optional[str] = None
+    status: SubmissionStatus = SubmissionStatus.SUBMITTED
+
+
+class StatusUpdate(BaseModel):
+    status: SubmissionStatus
