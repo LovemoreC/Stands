@@ -16,13 +16,26 @@ class Project(BaseModel):
     description: Optional[str] = None
 
 
+class MandateStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
+class Mandate(BaseModel):
+    agent: str
+    document: Optional[str] = None
+    status: MandateStatus = MandateStatus.PENDING
+
+
 class Stand(BaseModel):
     id: int
     project_id: int
     name: str
     status: PropertyStatus = PropertyStatus.AVAILABLE
-    mandate_agent: Optional[str] = None
+    mandate: Optional[Mandate] = None
 
 
-class Mandate(BaseModel):
-    agent: str
+class Agent(BaseModel):
+    username: str
+    role: str

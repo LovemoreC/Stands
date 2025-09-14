@@ -9,25 +9,58 @@ from app.models import PropertyStatus
 client = TestClient(app)
 
 
-def test_create_update_archive_and_mandate():
-    # Create project
+def test_auth_mandate_and_available_view():
+    # register agents
+    resp = client.post("/agents", json={"username": "admin", "role": "admin"})
+    assert resp.status_code == 200
+    resp = client.post("/agents", json={"username": "agentA", "role": "agent"})
+    assert resp.status_code == 200
+
+    admin_headers = {"X-Token": "admin"}
+    agent_headers = {"X-Token": "agentA"}
+
+    # Create project as admin
     project = {"id": 1, "name": "Project A"}
-    resp = client.post("/projects", json=project)
+    resp = client.post("/projects", json=project, headers=admin_headers)
     assert resp.status_code == 200
-    # Create stand
+
+    # Create stand as admin
     stand = {"id": 1, "project_id": 1, "name": "Stand 1"}
-    resp = client.post("/stands", json=stand)
+    resp = client.post("/stands", json=stand, headers=admin_headers)
     assert resp.status_code == 200
-    # Update stand
-    stand_update = {"id": 1, "project_id": 1, "name": "Stand 1", "status": "reserved"}
-    resp = client.put("/stands/1", json=stand_update)
+
+    # Agent cannot create stand
+    resp = client.post("/stands", json={"id": 2, "project_id": 1, "name": "Stand 2"}, headers=agent_headers)
+    assert resp.status_code == 403
+
+    # Update stand as admin
+    stand_update = {"id": 1, "project_id": 1, "name": "Stand 1 Updated", "status": "available"}
+    resp = client.put("/stands/1", json=stand_update, headers=admin_headers)
     assert resp.status_code == 200
-    assert resp.json()["status"] == PropertyStatus.RESERVED.value
-    # Assign mandate
-    resp = client.post("/stands/1/mandate", json={"agent": "Agent A"})
+    assert resp.json()["name"] == "Stand 1 Updated"
+
+    # Assign mandate with document
+    resp = client.post("/stands/1/mandate", json={"agent": "agentA", "document": "doc.pdf"}, headers=admin_headers)
     assert resp.status_code == 200
-    assert resp.json()["mandate_agent"] == "Agent A"
+    assert resp.json()["mandate"]["status"] == "pending"
+
+    # Agent accepts mandate
+    resp = client.put("/stands/1/mandate/accept", headers=agent_headers)
+    assert resp.status_code == 200
+    assert resp.json()["mandate"]["status"] == "accepted"
+
+    # Available stands for agent (filtered by mandate)
+    resp = client.get("/stands/available", headers=agent_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+    # Available stands for admin (all available)
+    resp = client.get("/stands/available", headers=admin_headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
     # Archive stand
-    resp = client.delete("/stands/1")
+    resp = client.delete("/stands/1", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["status"] == PropertyStatus.ARCHIVED.value
+
