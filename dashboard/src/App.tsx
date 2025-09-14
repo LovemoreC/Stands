@@ -6,6 +6,8 @@ import Stands from './pages/Stands';
 import Mandates from './pages/Mandates';
 import Dashboard from './pages/Dashboard';
 import MultiStepForm from './pages/MultiStepForm';
+import AccountOpenings from './pages/AccountOpenings';
+import AccountOpeningDetail from './pages/AccountOpeningDetail';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -19,6 +21,7 @@ const App: React.FC = () => {
               <Link to="/projects">Projects</Link> |{' '}
               <Link to="/stands">Stands</Link> |{' '}
               <Link to="/mandates">Mandates</Link> |{' '}
+              <Link to="/account-openings">Account Openings</Link> |{' '}
             </>
           )}
           {auth.role === 'agent' && (
@@ -53,6 +56,22 @@ const App: React.FC = () => {
           element={
             <ProtectedRoute roles={["admin"]}>
               <Mandates />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/account-openings"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AccountOpenings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/account-openings/:id"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AccountOpeningDetail />
             </ProtectedRoute>
           }
         />
