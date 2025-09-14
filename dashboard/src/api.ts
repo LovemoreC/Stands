@@ -66,39 +66,68 @@ export async function assignMandate(token: string, standId: number, agent: strin
 
 export async function submitOffer(
   token: string,
-  offer: { id: number; realtor: string; property_id: number; details?: string }
+  offer: { id: number; realtor: string; property_id: number; details?: string; file?: File }
 ) {
-  const res = await fetch('/offers', {
-    method: 'POST',
-    headers: headers(token),
-    body: JSON.stringify(offer),
-  });
+  const opts: RequestInit = { method: 'POST' };
+  if (offer.file) {
+    const form = new FormData();
+    form.append('id', String(offer.id));
+    form.append('realtor', offer.realtor);
+    form.append('property_id', String(offer.property_id));
+    if (offer.details) form.append('details', offer.details);
+    form.append('file', offer.file);
+    opts.body = form;
+    opts.headers = { 'X-Token': token };
+  } else {
+    opts.body = JSON.stringify(offer);
+    opts.headers = headers(token);
+  }
+  const res = await fetch('/offers', opts);
   if (!res.ok) throw new Error('Failed to submit offer');
   return res.json();
 }
 
 export async function submitAccountOpening(
   token: string,
-  req: { id: number; realtor: string; details?: string }
+  req: { id: number; realtor: string; details?: string; file?: File }
 ) {
-  const res = await fetch('/account-openings', {
-    method: 'POST',
-    headers: headers(token),
-    body: JSON.stringify(req),
-  });
+  const opts: RequestInit = { method: 'POST' };
+  if (req.file) {
+    const form = new FormData();
+    form.append('id', String(req.id));
+    form.append('realtor', req.realtor);
+    if (req.details) form.append('details', req.details);
+    form.append('file', req.file);
+    opts.body = form;
+    opts.headers = { 'X-Token': token };
+  } else {
+    opts.body = JSON.stringify(req);
+    opts.headers = headers(token);
+  }
+  const res = await fetch('/account-openings', opts);
   if (!res.ok) throw new Error('Failed to submit account opening');
   return res.json();
 }
 
 export async function submitPropertyApplication(
   token: string,
-  app: { id: number; realtor: string; property_id: number; details?: string }
+  app: { id: number; realtor: string; property_id: number; details?: string; file?: File }
 ) {
-  const res = await fetch('/property-applications', {
-    method: 'POST',
-    headers: headers(token),
-    body: JSON.stringify(app),
-  });
+  const opts: RequestInit = { method: 'POST' };
+  if (app.file) {
+    const form = new FormData();
+    form.append('id', String(app.id));
+    form.append('realtor', app.realtor);
+    form.append('property_id', String(app.property_id));
+    if (app.details) form.append('details', app.details);
+    form.append('file', app.file);
+    opts.body = form;
+    opts.headers = { 'X-Token': token };
+  } else {
+    opts.body = JSON.stringify(app);
+    opts.headers = headers(token);
+  }
+  const res = await fetch('/property-applications', opts);
   if (!res.ok) throw new Error('Failed to submit property application');
   return res.json();
 }
