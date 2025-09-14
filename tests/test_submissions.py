@@ -62,3 +62,38 @@ def test_submissions_and_status_updates():
     # Realtor checks account opening status
     resp = client.get("/account-openings/1", headers=realtor_headers)
     assert resp.json()["status"] == SubmissionStatus.COMPLETED.value
+
+
+def test_account_opening_deposit_tracking():
+    setup_agents()
+    admin_headers = {"X-Token": "admin"}
+    realtor_headers = {"X-Token": "realtor"}
+
+    account = {"id": 2, "realtor": "realtor"}
+    resp = client.post("/account-openings", json=account, headers=realtor_headers)
+    assert resp.status_code == 200
+
+    resp = client.put(
+        "/account-openings/2/open",
+        json={"account_number": "ACC123", "deposit_threshold": 100},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["account_number"] == "ACC123"
+    assert resp.json()["status"] == SubmissionStatus.IN_PROGRESS.value
+
+    resp = client.post(
+        "/account-openings/2/deposit",
+        json={"amount": 40},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == SubmissionStatus.IN_PROGRESS.value
+
+    resp = client.post(
+        "/account-openings/2/deposit",
+        json={"amount": 60},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == SubmissionStatus.COMPLETED.value

@@ -12,6 +12,8 @@ from .models import (
     PropertyApplication,
     AccountOpening,
     StatusUpdate,
+    AccountSetup,
+    Deposit,
 )
 
 app = FastAPI(title="Property Management API")
@@ -218,6 +220,30 @@ def update_account_opening_status(req_id: int, update: StatusUpdate, _: Agent = 
         raise HTTPException(status_code=404, detail="Request not found")
     request = account_openings[req_id]
     request.status = update.status
+    account_openings[req_id] = request
+    return request
+
+
+@app.put("/account-openings/{req_id}/open", response_model=AccountOpening)
+def open_account(req_id: int, details: AccountSetup, _: Agent = Depends(require_admin)):
+    if req_id not in account_openings:
+        raise HTTPException(status_code=404, detail="Request not found")
+    request = account_openings[req_id]
+    request.account_number = details.account_number
+    request.deposit_threshold = details.deposit_threshold
+    request.status = SubmissionStatus.IN_PROGRESS
+    account_openings[req_id] = request
+    return request
+
+
+@app.post("/account-openings/{req_id}/deposit", response_model=AccountOpening)
+def record_deposit(req_id: int, deposit: Deposit, _: Agent = Depends(require_admin)):
+    if req_id not in account_openings:
+        raise HTTPException(status_code=404, detail="Request not found")
+    request = account_openings[req_id]
+    request.deposits.append(deposit.amount)
+    if request.deposit_threshold is not None and sum(request.deposits) >= request.deposit_threshold:
+        request.status = SubmissionStatus.COMPLETED
     account_openings[req_id] = request
     return request
 

@@ -1,6 +1,7 @@
 from enum import Enum
-from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class PropertyStatus(str, Enum):
@@ -69,7 +70,19 @@ class AccountOpening(BaseModel):
     realtor: str
     details: Optional[str] = None
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
+    account_number: Optional[str] = None
+    deposit_threshold: Optional[float] = None
+    deposits: List[float] = Field(default_factory=list)
 
 
 class StatusUpdate(BaseModel):
     status: SubmissionStatus
+
+
+class AccountSetup(BaseModel):
+    account_number: str
+    deposit_threshold: float
+
+
+class Deposit(BaseModel):
+    amount: float
