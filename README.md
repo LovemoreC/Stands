@@ -18,6 +18,18 @@ uvicorn app.main:app --reload
 
 Interactive docs will be available at `http://127.0.0.1:8000/docs`.
 
+## Admin Dashboard
+
+A simple React + TypeScript dashboard is available in the `dashboard/` directory. It offers role-based routing and CRUD views for projects, stands, and mandate assignments.
+
+```
+cd dashboard
+npm install
+npm run dev
+```
+
+The dev server proxies API requests to the FastAPI backend running on port 8000.
+
 ## Importing Projects and Stands
 
 Administrators can bulk import projects and stand/unit details from a CSV or Excel file:
