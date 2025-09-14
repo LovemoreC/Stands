@@ -131,3 +131,40 @@ export async function submitPropertyApplication(
   if (!res.ok) throw new Error('Failed to submit property application');
   return res.json();
 }
+
+export async function getAccountOpenings(token: string, status?: string) {
+  const url = status ? `/account-openings?status=${status}` : '/account-openings';
+  const res = await fetch(url, { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load account openings');
+  return res.json();
+}
+
+export async function getAccountOpening(token: string, id: number) {
+  const res = await fetch(`/account-openings/${id}`, { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load account opening');
+  return res.json();
+}
+
+export async function openAccount(
+  token: string,
+  id: number,
+  data: { account_number: string; deposit_threshold: number }
+) {
+  const res = await fetch(`/account-openings/${id}/open`, {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to open account');
+  return res.json();
+}
+
+export async function recordDeposit(token: string, id: number, amount: number) {
+  const res = await fetch(`/account-openings/${id}/deposit`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({ amount }),
+  });
+  if (!res.ok) throw new Error('Failed to record deposit');
+  return res.json();
+}

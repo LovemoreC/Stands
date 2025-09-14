@@ -192,3 +192,40 @@ def test_loan_application_flow():
     assert resp.json()["status"] == SubmissionStatus.REJECTED.value
     assert resp.json()["decision"] == "rejected"
     assert resp.json()["reason"] == "Insufficient credit"
+
+
+def test_account_opening_queue_listing():
+    tokens = setup_agents()
+    admin_headers = {"X-Token": tokens["admin"]}
+    realtor_headers = {"X-Token": tokens["realtor"]}
+
+    client.post(
+        "/account-openings",
+        json={"id": 10, "realtor": "realtor"},
+        headers=realtor_headers,
+    )
+    client.post(
+        "/account-openings",
+        json={"id": 20, "realtor": "realtor"},
+        headers=realtor_headers,
+    )
+    client.put(
+        "/account-openings/10/open",
+        json={"account_number": "ACC10", "deposit_threshold": 100},
+        headers=admin_headers,
+    )
+
+    resp = client.get(
+        "/account-openings",
+        params={"status": SubmissionStatus.SUBMITTED.value},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["id"] == 20
+
+    resp = client.get("/account-openings", headers=admin_headers)
+    assert resp.status_code == 200
+    ids = {r["id"] for r in resp.json()}
+    assert ids == {10, 20}

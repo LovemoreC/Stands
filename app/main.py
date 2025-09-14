@@ -459,6 +459,18 @@ def submit_account_opening(
     return request
 
 
+@app.get("/account-openings", response_model=List[AccountOpening])
+def list_account_openings(
+    status: Optional[SubmissionStatus] = None,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    openings = repos.account_openings.list()
+    if status:
+        openings = [o for o in openings if o.status == status]
+    return openings
+
+
 @app.get("/account-openings/{req_id}", response_model=AccountOpening)
 def get_account_opening(
     req_id: int,
