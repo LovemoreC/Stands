@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import List, Optional
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -27,6 +28,8 @@ class Mandate(BaseModel):
     agent: str
     document: Optional[str] = None
     status: MandateStatus = MandateStatus.PENDING
+    agreement_status: Optional[str] = None
+    expiration_date: Optional[datetime] = None
 
 
 class Stand(BaseModel):

@@ -1,11 +1,12 @@
 import React from 'react';
 import { useAuth } from '../auth';
+import { useNavigate } from 'react-router-dom';
 
 const Login: React.FC = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
-  const [role, setRole] = React.useState('admin');
   const [error, setError] = React.useState('');
 
   const submit = async (e: React.FormEvent) => {
@@ -19,7 +20,12 @@ const Login: React.FC = () => {
       });
       if (!res.ok) throw new Error('Login failed');
       const data = await res.json();
-      login(data.token, role);
+      login(data.token, data.role, data.username);
+      if (data.role === 'agent') {
+        navigate('/dashboard');
+      } else {
+        navigate('/projects');
+      }
     } catch (err: any) {
       setError(err.message);
     }
@@ -42,12 +48,6 @@ const Login: React.FC = () => {
           onChange={e => setPassword(e.target.value)}
           required
         />
-        <select value={role} onChange={e => setRole(e.target.value)}>
-          <option value="admin">Admin</option>
-          <option value="agent">Agent</option>
-          <option value="manager">Manager</option>
-          <option value="compliance">Compliance</option>
-        </select>
         <button type="submit">Login</button>
       </form>
       {error && <p>{error}</p>}
