@@ -1,0 +1,53 @@
+import React from 'react';
+import { Routes, Route, Link, Navigate } from 'react-router-dom';
+import Login from './pages/Login';
+import Projects from './pages/Projects';
+import Stands from './pages/Stands';
+import Mandates from './pages/Mandates';
+import { ProtectedRoute, useAuth } from './auth';
+
+const App: React.FC = () => {
+  const { auth, logout } = useAuth();
+  return (
+    <div>
+      {auth && (
+        <nav>
+          <Link to="/projects">Projects</Link> |{' '}
+          <Link to="/stands">Stands</Link> |{' '}
+          <Link to="/mandates">Mandates</Link> |{' '}
+          <button onClick={logout}>Logout</button>
+        </nav>
+      )}
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <Projects />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/stands"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <Stands />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/mandates"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <Mandates />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to={auth ? '/projects' : '/login'} replace />} />
+      </Routes>
+    </div>
+  );
+};
+
+export default App;
