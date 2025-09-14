@@ -1,6 +1,8 @@
 # Stands
 
 Simple FastAPI service that allows a Property Sales Manager to manage real estate projects and stands.
+It also supports submission workflows for offers, property applications, and account opening requests with
+basic status tracking and notification storage.
 
 ## Setup
 
