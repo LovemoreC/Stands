@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, Request
-from typing import Dict, List
+from typing import List
 from datetime import datetime
+from .database import init_db, get_session, SessionLocal
+from .repositories import Repositories
 from .models import (
     Project,
     Stand,
@@ -26,25 +28,20 @@ from .models import (
 )
 
 app = FastAPI(title="Property Management API")
-
-# In-memory stores
-projects: Dict[int, Project] = {}
-stands: Dict[int, Stand] = {}
-agents: Dict[str, Agent] = {}
-offers: Dict[int, Offer] = {}
-applications: Dict[int, PropertyApplication] = {}
-account_openings: Dict[int, AccountOpening] = {}
-loan_applications: Dict[int, LoanApplication] = {}
-notifications: List[str] = []
-agreements: Dict[int, Agreement] = {}
-customer_loan_accounts: Dict[str, List[str]] = {}
-audit_log: List[str] = []
+init_db()
 
 
-def get_current_agent(x_token: str = Header(...)) -> Agent:
-    if x_token not in agents:
+def get_repositories(session=Depends(get_session)) -> Repositories:
+    return Repositories(session)
+
+
+def get_current_agent(
+    x_token: str = Header(...), repos: Repositories = Depends(get_repositories)
+) -> Agent:
+    agent = repos.agents.get(x_token)
+    if not agent:
         raise HTTPException(status_code=401, detail="Invalid authentication token")
-    return agents[x_token]
+    return agent
 
 
 def require_admin(agent: Agent = Depends(get_current_agent)) -> Agent:
@@ -62,102 +59,142 @@ def require_compliance(agent: Agent = Depends(get_current_agent)) -> Agent:
 @app.middleware("http")
 async def log_request(request: Request, call_next):
     token = request.headers.get("x-token")
-    username = agents.get(token).username if token in agents else "anonymous"
+    session = SessionLocal()
+    repos = Repositories(session)
+    username = "anonymous"
+    if token:
+        agent = repos.agents.get(token)
+        if agent:
+            username = agent.username
     timestamp = datetime.utcnow().isoformat()
     response = await call_next(request)
-    audit_log.append(
+    repos.audit_log.append(
         f"{timestamp} - {username} - {request.method} {request.url.path} - {response.status_code}"
     )
+    session.close()
     return response
 
+
 @app.post("/agents", response_model=Agent)
-def create_agent(agent: Agent):
-    if agent.username in agents:
+def create_agent(agent: Agent, repos: Repositories = Depends(get_repositories)):
+    if repos.agents.get(agent.username):
         raise HTTPException(status_code=400, detail="Agent exists")
     if agent.role not in AgentRole:
         raise HTTPException(status_code=400, detail="Unknown role")
-    agents[agent.username] = agent
+    repos.agents.add(agent)
     return agent
 
 
 @app.post("/projects", response_model=Project)
-def create_project(project: Project, _: Agent = Depends(require_admin)):
-    if project.id in projects:
+def create_project(
+    project: Project,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.projects.get(project.id):
         raise HTTPException(status_code=400, detail="Project ID exists")
-    projects[project.id] = project
+    repos.projects.add(project)
     return project
 
 
 @app.get("/projects", response_model=List[Project])
-def list_projects(_: Agent = Depends(get_current_agent)):
-    return list(projects.values())
+def list_projects(
+    _: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    return repos.projects.list()
 
 
 @app.post("/stands", response_model=Stand)
-def create_stand(stand: Stand, _: Agent = Depends(require_admin)):
-    if stand.id in stands:
+def create_stand(
+    stand: Stand,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.stands.get(stand.id):
         raise HTTPException(status_code=400, detail="Stand ID exists")
-    if stand.project_id not in projects:
+    if not repos.projects.get(stand.project_id):
         raise HTTPException(status_code=404, detail="Project not found")
-    stands[stand.id] = stand
+    repos.stands.add(stand)
     return stand
 
 
 @app.put("/stands/{stand_id}", response_model=Stand)
-def update_stand(stand_id: int, stand: Stand, _: Agent = Depends(require_admin)):
-    if stand_id not in stands:
+def update_stand(
+    stand_id: int,
+    stand: Stand,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    existing = repos.stands.get(stand_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Stand not found")
-    existing = stands[stand_id]
     if existing.status == PropertyStatus.SOLD:
         raise HTTPException(status_code=400, detail="Stand already sold")
-    if stand.project_id not in projects:
+    if not repos.projects.get(stand.project_id):
         raise HTTPException(status_code=404, detail="Project not found")
-    stands[stand_id] = stand
+    repos.stands.add(stand)
     return stand
 
 
 @app.delete("/stands/{stand_id}", response_model=Stand)
-def archive_stand(stand_id: int, _: Agent = Depends(require_admin)):
-    if stand_id not in stands:
+def archive_stand(
+    stand_id: int,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    stand = repos.stands.get(stand_id)
+    if not stand:
         raise HTTPException(status_code=404, detail="Stand not found")
-    stand = stands[stand_id]
     if stand.status == PropertyStatus.SOLD:
         raise HTTPException(status_code=400, detail="Stand already sold")
     stand.status = PropertyStatus.ARCHIVED
-    stands[stand_id] = stand
+    repos.stands.add(stand)
     return stand
 
 
 @app.post("/stands/{stand_id}/mandate", response_model=Stand)
-def assign_mandate(stand_id: int, mandate: Mandate, _: Agent = Depends(require_admin)):
-    if stand_id not in stands:
+def assign_mandate(
+    stand_id: int,
+    mandate: Mandate,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    stand = repos.stands.get(stand_id)
+    if not stand:
         raise HTTPException(status_code=404, detail="Stand not found")
-    stand = stands[stand_id]
     if stand.status == PropertyStatus.SOLD:
         raise HTTPException(status_code=400, detail="Stand already sold")
     stand.mandate = mandate
     stand.mandate.status = MandateStatus.PENDING
-    stands[stand_id] = stand
+    repos.stands.add(stand)
     return stand
 
 
 @app.put("/stands/{stand_id}/mandate/accept", response_model=Stand)
-def accept_mandate(stand_id: int, agent: Agent = Depends(get_current_agent)):
-    if stand_id not in stands:
+def accept_mandate(
+    stand_id: int,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    stand = repos.stands.get(stand_id)
+    if not stand:
         raise HTTPException(status_code=404, detail="Stand not found")
-    stand = stands[stand_id]
     if stand.status == PropertyStatus.SOLD:
         raise HTTPException(status_code=400, detail="Stand already sold")
     if not stand.mandate or stand.mandate.agent != agent.username:
         raise HTTPException(status_code=403, detail="Not authorized to accept this mandate")
     stand.mandate.status = MandateStatus.ACCEPTED
-    stands[stand_id] = stand
+    repos.stands.add(stand)
     return stand
 
 
 @app.get("/stands/available", response_model=List[Stand])
-def available_stands(agent: Agent = Depends(get_current_agent)):
-    result = [s for s in stands.values() if s.status == PropertyStatus.AVAILABLE]
+def available_stands(
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    result = [s for s in repos.stands.list() if s.status == PropertyStatus.AVAILABLE]
     if agent.role == AgentRole.AGENT:
         result = [
             s
@@ -165,6 +202,18 @@ def available_stands(agent: Agent = Depends(get_current_agent)):
             if s.mandate and s.mandate.agent == agent.username and s.mandate.status == MandateStatus.ACCEPTED
         ]
     return result
+
+
+@app.get("/stands/{stand_id}", response_model=Stand)
+def get_stand(
+    stand_id: int,
+    _: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    stand = repos.stands.get(stand_id)
+    if not stand:
+        raise HTTPException(status_code=404, detail="Stand not found")
+    return stand
 
 
 # ---- Submission endpoints ----
@@ -176,188 +225,270 @@ def _ensure_owner(obj_realtor: str, agent: Agent):
 
 
 @app.post("/offers", response_model=Offer)
-def submit_offer(offer: Offer, agent: Agent = Depends(get_current_agent)):
-    if offer.id in offers:
+def submit_offer(
+    offer: Offer,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.offers.get(offer.id):
         raise HTTPException(status_code=400, detail="Offer ID exists")
     if agent.username != offer.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
-    offers[offer.id] = offer
-    notifications.append(f"Offer {offer.id} submitted by {offer.realtor}")
+    repos.offers.add(offer)
+    repos.notifications.append(f"Offer {offer.id} submitted by {offer.realtor}")
     return offer
 
 
 @app.get("/offers/{offer_id}", response_model=Offer)
-def get_offer(offer_id: int, agent: Agent = Depends(get_current_agent)):
-    if offer_id not in offers:
+def get_offer(
+    offer_id: int,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    offer = repos.offers.get(offer_id)
+    if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
-    offer = offers[offer_id]
     _ensure_owner(offer.realtor, agent)
     return offer
 
 
 @app.put("/offers/{offer_id}/status", response_model=Offer)
-def update_offer_status(offer_id: int, update: StatusUpdate, _: Agent = Depends(require_admin)):
-    if offer_id not in offers:
+def update_offer_status(
+    offer_id: int,
+    update: StatusUpdate,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    offer = repos.offers.get(offer_id)
+    if not offer:
         raise HTTPException(status_code=404, detail="Offer not found")
-    offer = offers[offer_id]
     offer.status = update.status
-    offers[offer_id] = offer
+    repos.offers.add(offer)
     return offer
 
 
 @app.post("/property-applications", response_model=PropertyApplication)
-def submit_property_application(application: PropertyApplication, agent: Agent = Depends(get_current_agent)):
-    if application.id in applications:
+def submit_property_application(
+    application: PropertyApplication,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.applications.get(application.id):
         raise HTTPException(status_code=400, detail="Application ID exists")
     if agent.username != application.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
-    applications[application.id] = application
-    notifications.append(f"Property application {application.id} submitted by {application.realtor}")
+    repos.applications.add(application)
+    repos.notifications.append(
+        f"Property application {application.id} submitted by {application.realtor}"
+    )
     return application
 
 
 @app.get("/property-applications/{app_id}", response_model=PropertyApplication)
-def get_property_application(app_id: int, agent: Agent = Depends(get_current_agent)):
-    if app_id not in applications:
+def get_property_application(
+    app_id: int,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    application = repos.applications.get(app_id)
+    if not application:
         raise HTTPException(status_code=404, detail="Application not found")
-    application = applications[app_id]
     _ensure_owner(application.realtor, agent)
     return application
 
 
 @app.put("/property-applications/{app_id}/status", response_model=PropertyApplication)
-def update_property_application_status(app_id: int, update: StatusUpdate, _: Agent = Depends(require_admin)):
-    if app_id not in applications:
+def update_property_application_status(
+    app_id: int,
+    update: StatusUpdate,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    application = repos.applications.get(app_id)
+    if not application:
         raise HTTPException(status_code=404, detail="Application not found")
-    application = applications[app_id]
     application.status = update.status
-    applications[app_id] = application
+    repos.applications.add(application)
     return application
 
 
 @app.post("/account-openings", response_model=AccountOpening)
-def submit_account_opening(request: AccountOpening, agent: Agent = Depends(get_current_agent)):
-    if request.id in account_openings:
+def submit_account_opening(
+    request: AccountOpening,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.account_openings.get(request.id):
         raise HTTPException(status_code=400, detail="Request ID exists")
     if agent.username != request.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
-    account_openings[request.id] = request
-    notifications.append(f"Account opening {request.id} submitted by {request.realtor}")
+    repos.account_openings.add(request)
+    repos.notifications.append(
+        f"Account opening {request.id} submitted by {request.realtor}"
+    )
     return request
 
 
 @app.get("/account-openings/{req_id}", response_model=AccountOpening)
-def get_account_opening(req_id: int, agent: Agent = Depends(get_current_agent)):
-    if req_id not in account_openings:
+def get_account_opening(
+    req_id: int,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    request = repos.account_openings.get(req_id)
+    if not request:
         raise HTTPException(status_code=404, detail="Request not found")
-    request = account_openings[req_id]
     _ensure_owner(request.realtor, agent)
     return request
 
 
 @app.put("/account-openings/{req_id}/status", response_model=AccountOpening)
-def update_account_opening_status(req_id: int, update: StatusUpdate, _: Agent = Depends(require_admin)):
-    if req_id not in account_openings:
+def update_account_opening_status(
+    req_id: int,
+    update: StatusUpdate,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    request = repos.account_openings.get(req_id)
+    if not request:
         raise HTTPException(status_code=404, detail="Request not found")
-    request = account_openings[req_id]
     request.status = update.status
-    account_openings[req_id] = request
+    repos.account_openings.add(request)
     return request
 
 
 @app.put("/account-openings/{req_id}/open", response_model=AccountOpening)
-def open_account(req_id: int, details: AccountSetup, _: Agent = Depends(require_admin)):
-    if req_id not in account_openings:
+def open_account(
+    req_id: int,
+    details: AccountSetup,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    request = repos.account_openings.get(req_id)
+    if not request:
         raise HTTPException(status_code=404, detail="Request not found")
-    request = account_openings[req_id]
     if details.deposit_threshold <= 0:
         raise HTTPException(status_code=400, detail="Deposit threshold must be positive")
     request.account_number = details.account_number
     request.deposit_threshold = details.deposit_threshold
     request.status = SubmissionStatus.IN_PROGRESS
-    account_openings[req_id] = request
+    repos.account_openings.add(request)
     return request
 
 
 @app.post("/account-openings/{req_id}/deposit", response_model=AccountOpening)
-def record_deposit(req_id: int, deposit: Deposit, _: Agent = Depends(require_admin)):
-    if req_id not in account_openings:
+def record_deposit(
+    req_id: int,
+    deposit: Deposit,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    request = repos.account_openings.get(req_id)
+    if not request:
         raise HTTPException(status_code=404, detail="Request not found")
-    request = account_openings[req_id]
     if deposit.amount <= 0:
         raise HTTPException(status_code=400, detail="Deposit amount must be positive")
     request.deposits.append(deposit.amount)
     if request.deposit_threshold is not None and sum(request.deposits) >= request.deposit_threshold:
         request.status = SubmissionStatus.COMPLETED
-    account_openings[req_id] = request
+    repos.account_openings.add(request)
     return request
 
 
 @app.post("/loan-applications", response_model=LoanApplication)
 def submit_loan_application(
-    application: LoanApplication, agent: Agent = Depends(get_current_agent)
+    application: LoanApplication,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
 ):
-    if application.id in loan_applications:
+    if repos.loan_applications.get(application.id):
         raise HTTPException(status_code=400, detail="Loan application ID exists")
     if agent.username != application.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
-    if application.account_id not in account_openings:
+    account = repos.account_openings.get(application.account_id)
+    if not account:
         raise HTTPException(status_code=404, detail="Account not found")
-    account = account_openings[application.account_id]
     if account.status != SubmissionStatus.COMPLETED:
-        raise HTTPException(status_code=400, detail="Deposits not sufficient for loan application")
+        raise HTTPException(
+            status_code=400, detail="Deposits not sufficient for loan application"
+        )
     if not application.documents:
         raise HTTPException(status_code=400, detail="Documentation required")
-    loan_applications[application.id] = application
-    notifications.append(
+    repos.loan_applications.add(application)
+    repos.notifications.append(
         f"Loan application {application.id} submitted by {application.realtor}"
     )
     return application
 
 
 @app.get("/loan-applications/{app_id}", response_model=LoanApplication)
-def get_loan_application(app_id: int, agent: Agent = Depends(get_current_agent)):
-    if app_id not in loan_applications:
+def get_loan_application(
+    app_id: int,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    application = repos.loan_applications.get(app_id)
+    if not application:
         raise HTTPException(status_code=404, detail="Loan application not found")
-    application = loan_applications[app_id]
     _ensure_owner(application.realtor, agent)
     return application
 
 
 @app.put("/loan-applications/{app_id}/decision", response_model=LoanApplication)
 def decide_loan_application(
-    app_id: int, decision: LoanDecisionUpdate, _: Agent = Depends(require_admin)
+    app_id: int,
+    decision: LoanDecisionUpdate,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
 ):
-    if app_id not in loan_applications:
+    application = repos.loan_applications.get(app_id)
+    if not application:
         raise HTTPException(status_code=404, detail="Loan application not found")
-    application = loan_applications[app_id]
     application.decision = decision.decision
     application.reason = decision.reason
     if decision.decision == LoanDecision.APPROVED:
         application.status = SubmissionStatus.COMPLETED
     else:
         application.status = SubmissionStatus.REJECTED
-    loan_applications[app_id] = application
+    repos.loan_applications.add(application)
     return application
 
 
 @app.get("/notifications", response_model=List[str])
-def list_notifications(_: Agent = Depends(require_admin)):
-    return notifications
+def list_notifications(
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    return repos.notifications.list()
+
+
+@app.get("/loan-accounts/{realtor}", response_model=List[str])
+def list_loan_accounts(
+    realtor: str,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    if agent.role != AgentRole.ADMIN and agent.username != realtor:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return repos.customer_loan_accounts.get(realtor, [])
 
 
 @app.get("/dashboard")
-def dashboard(agent: Agent = Depends(get_current_agent)):
+def dashboard(
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
     data = {}
     if agent.role in (AgentRole.MANAGER, AgentRole.ADMIN):
+        stands_list = repos.stands.list()
         prop_counts = {
-            status.value: sum(1 for s in stands.values() if s.status == status)
+            status.value: sum(1 for s in stands_list if s.status == status)
             for status in PropertyStatus
         }
         mandate_counts = {
             status.value: sum(
                 1
-                for s in stands.values()
+                for s in stands_list
                 if s.mandate and s.mandate.status == status
             )
             for status in MandateStatus
@@ -365,28 +496,26 @@ def dashboard(agent: Agent = Depends(get_current_agent)):
         data["property_status"] = prop_counts
         data["mandates"] = mandate_counts
     if agent.role in (AgentRole.COMPLIANCE, AgentRole.ADMIN):
-        total_deposits = sum(sum(req.deposits) for req in account_openings.values())
+        openings = repos.account_openings.list()
+        total_deposits = sum(sum(req.deposits) for req in openings)
+        apps = repos.loan_applications.list()
         approvals = sum(
-            1
-            for app in loan_applications.values()
-            if app.decision == LoanDecision.APPROVED
+            1 for app in apps if app.decision == LoanDecision.APPROVED
         )
         rejections = sum(
-            1
-            for app in loan_applications.values()
-            if app.decision == LoanDecision.REJECTED
+            1 for app in apps if app.decision == LoanDecision.REJECTED
         )
         data["deposits"] = total_deposits
-        data["loan_approvals"] = {
-            "approved": approvals,
-            "rejected": rejections,
-        }
+        data["loan_approvals"] = {"approved": approvals, "rejected": rejections}
     return data
 
 
 @app.get("/audit-log", response_model=List[str])
-def get_audit_log(_: Agent = Depends(require_compliance)):
-    return audit_log
+def get_audit_log(
+    _: Agent = Depends(require_compliance),
+    repos: Repositories = Depends(get_repositories),
+):
+    return repos.audit_log.list()
 
 
 # ---- Agreement endpoints ----
@@ -394,16 +523,18 @@ def get_audit_log(_: Agent = Depends(require_compliance)):
 
 @app.post("/agreements/generate", response_model=Agreement)
 def generate_agreement(
-    data: AgreementCreate, _: Agent = Depends(require_admin)
+    data: AgreementCreate,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
 ):
-    if data.id in agreements:
+    if repos.agreements.get(data.id):
         raise HTTPException(status_code=400, detail="Agreement ID exists")
-    if data.loan_application_id not in loan_applications:
+    loan = repos.loan_applications.get(data.loan_application_id)
+    if not loan:
         raise HTTPException(status_code=404, detail="Loan application not found")
-    if data.property_id not in stands:
+    stand = repos.stands.get(data.property_id)
+    if not stand:
         raise HTTPException(status_code=404, detail="Property not found")
-    loan = loan_applications[data.loan_application_id]
-    stand = stands[data.property_id]
     content = f"Agreement for property {stand.name} with loan {loan.id}"
     timestamp = datetime.utcnow().isoformat()
     agreement = Agreement(
@@ -414,22 +545,31 @@ def generate_agreement(
         versions=[content],
         audit_log=[f"{timestamp}: generated"],
     )
-    agreements[data.id] = agreement
+    repos.agreements.add(agreement)
     return agreement
 
 
 @app.get("/agreements/{agreement_id}", response_model=Agreement)
-def get_agreement(agreement_id: int, _: Agent = Depends(get_current_agent)):
-    if agreement_id not in agreements:
+def get_agreement(
+    agreement_id: int,
+    _: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    agreement = repos.agreements.get(agreement_id)
+    if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
-    return agreements[agreement_id]
+    return agreement
 
 
 @app.put("/agreements/{agreement_id}/sign", response_model=Agreement)
-def sign_agreement(agreement_id: int, agent: Agent = Depends(get_current_agent)):
-    if agreement_id not in agreements:
+def sign_agreement(
+    agreement_id: int,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    agreement = repos.agreements.get(agreement_id)
+    if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
-    agreement = agreements[agreement_id]
     timestamp = datetime.utcnow().isoformat()
     if agent.role == AgentRole.ADMIN:
         agreement.bank_signature = f"signed by {agent.username} at {timestamp}"
@@ -441,7 +581,7 @@ def sign_agreement(agreement_id: int, agent: Agent = Depends(get_current_agent))
         agreement.audit_log.append(
             f"{timestamp}: customer signed by {agent.username}"
         )
-    agreements[agreement_id] = agreement
+    repos.agreements.add(agreement)
     return agreement
 
 
@@ -450,16 +590,17 @@ def upload_agreement(
     agreement_id: int,
     upload: AgreementUpload,
     agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
 ):
-    if agreement_id not in agreements:
+    agreement = repos.agreements.get(agreement_id)
+    if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
-    agreement = agreements[agreement_id]
     agreement.versions.append(upload.document)
     agreement.document = upload.document
     timestamp = datetime.utcnow().isoformat()
     role = "bank" if agent.role == AgentRole.ADMIN else "customer"
     agreement.audit_log.append(f"{timestamp}: {role} uploaded new version")
-    agreements[agreement_id] = agreement
+    repos.agreements.add(agreement)
     return agreement
 
 
@@ -468,23 +609,25 @@ def execute_agreement(
     agreement_id: int,
     execution: AgreementExecution,
     _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
 ):
-    if agreement_id not in agreements:
+    agreement = repos.agreements.get(agreement_id)
+    if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
-    agreement = agreements[agreement_id]
     if not agreement.bank_signature or not agreement.customer_signature:
         raise HTTPException(status_code=400, detail="Agreement not fully signed")
-    loan_application = loan_applications[agreement.loan_application_id]
+    loan_application = repos.loan_applications.get(agreement.loan_application_id)
     loan_application.loan_account_number = execution.loan_account_number
-    loan_applications[agreement.loan_application_id] = loan_application
+    repos.loan_applications.add(loan_application)
     realtor = loan_application.realtor
-    customer_loan_accounts.setdefault(realtor, []).append(
-        execution.loan_account_number
-    )
-    stand = stands[agreement.property_id]
+    accounts = repos.customer_loan_accounts.get(realtor, [])
+    accounts.append(execution.loan_account_number)
+    repos.customer_loan_accounts.set(realtor, accounts)
+    stand = repos.stands.get(agreement.property_id)
     stand.status = PropertyStatus.SOLD
-    stands[agreement.property_id] = stand
-    notifications.append(
+    repos.stands.add(stand)
+    repos.notifications.append(
         f"Agreement {agreement_id} executed; notify Loan Accounts Opening Team"
     )
+    repos.agreements.add(agreement)
     return agreement

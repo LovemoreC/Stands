@@ -2,20 +2,9 @@ import sys
 sys.path.append(".")
 
 from fastapi.testclient import TestClient
-from app.main import (
-    app,
-    projects,
-    stands,
-    agents,
-    offers,
-    applications,
-    account_openings,
-    loan_applications,
-    notifications,
-    agreements,
-    customer_loan_accounts,
-)
+from app.main import app
 from app.models import PropertyStatus
+from app.database import drop_db, init_db
 
 client = TestClient(app)
 
@@ -59,16 +48,8 @@ def setup_data():
 
 
 def reset_state():
-    projects.clear()
-    stands.clear()
-    agents.clear()
-    offers.clear()
-    applications.clear()
-    account_openings.clear()
-    loan_applications.clear()
-    notifications.clear()
-    agreements.clear()
-    customer_loan_accounts.clear()
+    drop_db()
+    init_db()
 
 
 def test_agreement_flow():
@@ -107,10 +88,14 @@ def test_agreement_flow():
         headers=admin_headers,
     )
     assert resp.status_code == 200
-    assert stands[1].status == PropertyStatus.SOLD
-    assert loan_applications[1].loan_account_number == "LN1"
-    assert customer_loan_accounts["realtor"] == ["LN1"]
-    assert any("Loan Accounts Opening Team" in n for n in notifications)
+    stand_resp = client.get("/stands/1", headers=admin_headers)
+    assert stand_resp.json()["status"] == PropertyStatus.SOLD.value
+    loan_resp = client.get("/loan-applications/1", headers=realtor_headers)
+    assert loan_resp.json()["loan_account_number"] == "LN1"
+    acct_resp = client.get("/loan-accounts/realtor", headers=admin_headers)
+    assert acct_resp.json() == ["LN1"]
+    notes_resp = client.get("/notifications", headers=admin_headers)
+    assert any("Loan Accounts Opening Team" in n for n in notes_resp.json())
 
     resp = client.put(
         "/stands/1",

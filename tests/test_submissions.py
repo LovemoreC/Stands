@@ -4,11 +4,14 @@ sys.path.append(".")
 from fastapi.testclient import TestClient
 from app.main import app
 from app.models import SubmissionStatus
+from app.database import drop_db, init_db
 
 client = TestClient(app)
 
 
 def setup_agents():
+    drop_db()
+    init_db()
     client.post("/agents", json={"username": "admin", "role": "admin"})
     client.post("/agents", json={"username": "realtor", "role": "agent"})
 
