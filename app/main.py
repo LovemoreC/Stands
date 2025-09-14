@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from typing import Dict, List
 from datetime import datetime
 from .models import (
@@ -37,6 +37,7 @@ loan_applications: Dict[int, LoanApplication] = {}
 notifications: List[str] = []
 agreements: Dict[int, Agreement] = {}
 customer_loan_accounts: Dict[str, List[str]] = {}
+audit_log: List[str] = []
 
 
 def get_current_agent(x_token: str = Header(...)) -> Agent:
@@ -50,6 +51,23 @@ def require_admin(agent: Agent = Depends(get_current_agent)) -> Agent:
         raise HTTPException(status_code=403, detail="Admin privileges required")
     return agent
 
+
+def require_compliance(agent: Agent = Depends(get_current_agent)) -> Agent:
+    if agent.role not in ("compliance", "admin"):
+        raise HTTPException(status_code=403, detail="Compliance privileges required")
+    return agent
+
+
+@app.middleware("http")
+async def log_request(request: Request, call_next):
+    token = request.headers.get("x-token")
+    username = agents.get(token).username if token in agents else "anonymous"
+    timestamp = datetime.utcnow().isoformat()
+    response = await call_next(request)
+    audit_log.append(
+        f"{timestamp} - {username} - {request.method} {request.url.path} - {response.status_code}"
+    )
+    return response
 
 @app.post("/agents", response_model=Agent)
 def create_agent(agent: Agent):
@@ -319,6 +337,49 @@ def decide_loan_application(
 @app.get("/notifications", response_model=List[str])
 def list_notifications(_: Agent = Depends(require_admin)):
     return notifications
+
+
+@app.get("/dashboard")
+def dashboard(agent: Agent = Depends(get_current_agent)):
+    data = {}
+    if agent.role in ("manager", "admin"):
+        prop_counts = {
+            status.value: sum(1 for s in stands.values() if s.status == status)
+            for status in PropertyStatus
+        }
+        mandate_counts = {
+            status.value: sum(
+                1
+                for s in stands.values()
+                if s.mandate and s.mandate.status == status
+            )
+            for status in MandateStatus
+        }
+        data["property_status"] = prop_counts
+        data["mandates"] = mandate_counts
+    if agent.role in ("compliance", "admin"):
+        total_deposits = sum(sum(req.deposits) for req in account_openings.values())
+        approvals = sum(
+            1
+            for app in loan_applications.values()
+            if app.decision == LoanDecision.APPROVED
+        )
+        rejections = sum(
+            1
+            for app in loan_applications.values()
+            if app.decision == LoanDecision.REJECTED
+        )
+        data["deposits"] = total_deposits
+        data["loan_approvals"] = {
+            "approved": approvals,
+            "rejected": rejections,
+        }
+    return data
+
+
+@app.get("/audit-log", response_model=List[str])
+def get_audit_log(_: Agent = Depends(require_compliance)):
+    return audit_log
 
 
 # ---- Agreement endpoints ----
