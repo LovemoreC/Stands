@@ -54,6 +54,16 @@ POST /login {"username": "alice", "password": "secret"}
 X-Token: <token from login>
 ```
 
+## Reports
+
+Download a CSV report of all properties and mandate statuses. Optionally filter by
+property status using the `status` query parameter:
+
+```bash
+curl -H "X-Token: <token>" -o properties.csv \
+  "http://127.0.0.1:8000/reports/properties?status=available"
+```
+
 ## Tests
 
 ```
