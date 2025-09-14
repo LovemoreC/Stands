@@ -104,6 +104,7 @@ class LoanApplication(BaseModel):
     id: int
     realtor: str
     account_id: int
+    property_id: Optional[int] = None
     documents: List[str] = Field(default_factory=list)
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
     decision: Optional[LoanDecision] = None
