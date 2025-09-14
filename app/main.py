@@ -541,6 +541,7 @@ def generate_agreement(
         id=data.id,
         loan_application_id=data.loan_application_id,
         property_id=data.property_id,
+        realtor=loan.realtor,
         document=content,
         versions=[content],
         audit_log=[f"{timestamp}: generated"],
@@ -577,6 +578,8 @@ def sign_agreement(
             f"{timestamp}: bank signed by {agent.username}"
         )
     else:
+        if agent.username != agreement.realtor:
+            raise HTTPException(status_code=403, detail="Agent not authorized to sign")
         agreement.customer_signature = f"signed by {agent.username} at {timestamp}"
         agreement.audit_log.append(
             f"{timestamp}: customer signed by {agent.username}"

@@ -13,9 +13,11 @@ def setup_data():
     reset_state()
     client.post("/agents", json={"username": "admin", "role": "admin"})
     client.post("/agents", json={"username": "realtor", "role": "agent"})
+    client.post("/agents", json={"username": "intruder", "role": "agent"})
 
     admin_headers = {"X-Token": "admin"}
     realtor_headers = {"X-Token": "realtor"}
+    intruder_headers = {"X-Token": "intruder"}
 
     client.post("/projects", json={"id": 1, "name": "Proj"}, headers=admin_headers)
     client.post(
@@ -44,7 +46,7 @@ def setup_data():
         json={"id": 1, "realtor": "realtor", "account_id": 1, "documents": ["doc"]},
         headers=realtor_headers,
     )
-    return admin_headers, realtor_headers
+    return admin_headers, realtor_headers, intruder_headers
 
 
 def reset_state():
@@ -53,7 +55,7 @@ def reset_state():
 
 
 def test_agreement_flow():
-    admin_headers, realtor_headers = setup_data()
+    admin_headers, realtor_headers, intruder_headers = setup_data()
 
     resp = client.post(
         "/agreements/generate",
@@ -62,6 +64,9 @@ def test_agreement_flow():
     )
     assert resp.status_code == 200
     assert "Stand1" in resp.json()["document"]
+
+    resp = client.put("/agreements/1/sign", headers=intruder_headers)
+    assert resp.status_code == 403
 
     resp = client.put("/agreements/1/sign", headers=realtor_headers)
     assert resp.status_code == 200

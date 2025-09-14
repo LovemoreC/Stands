@@ -130,6 +130,7 @@ class Agreement(BaseModel):
     id: int
     loan_application_id: int
     property_id: int
+    realtor: str
     document: str
     versions: List[str] = Field(default_factory=list)
     bank_signature: Optional[str] = None
