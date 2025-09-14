@@ -13,7 +13,9 @@ from app.main import (
     loan_applications,
     notifications,
     agreements,
+    customer_loan_accounts,
 )
+from app.models import PropertyStatus
 
 client = TestClient(app)
 
@@ -66,6 +68,7 @@ def reset_state():
     loan_applications.clear()
     notifications.clear()
     agreements.clear()
+    customer_loan_accounts.clear()
 
 
 def test_agreement_flow():
@@ -97,4 +100,22 @@ def test_agreement_flow():
     assert data["document"] == "Updated"
     assert len(data["versions"]) == 2
     assert len(data["audit_log"]) >= 3
+
+    resp = client.put(
+        "/agreements/1/execute",
+        json={"loan_account_number": "LN1"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert stands[1].status == PropertyStatus.SOLD
+    assert loan_applications[1].loan_account_number == "LN1"
+    assert customer_loan_accounts["realtor"] == ["LN1"]
+    assert any("Loan Accounts Opening Team" in n for n in notifications)
+
+    resp = client.put(
+        "/stands/1",
+        json={"id": 1, "project_id": 1, "name": "New", "status": "available"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 400
     reset_state()

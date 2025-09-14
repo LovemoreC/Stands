@@ -88,6 +88,7 @@ class LoanApplication(BaseModel):
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
     decision: Optional[LoanDecision] = None
     reason: Optional[str] = None
+    loan_account_number: Optional[str] = None
 
 
 class StatusUpdate(BaseModel):
@@ -127,3 +128,7 @@ class Agreement(BaseModel):
     bank_signature: Optional[str] = None
     customer_signature: Optional[str] = None
     audit_log: List[str] = Field(default_factory=list)
+
+
+class AgreementExecution(BaseModel):
+    loan_account_number: str
