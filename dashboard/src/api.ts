@@ -225,6 +225,36 @@ export async function recordDeposit(token: string, id: number, amount: number) {
   return res.json();
 }
 
+export async function getPendingDeposits(token: string) {
+  const res = await fetch('/accounts/deposits/pending', { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load pending deposits');
+  return res.json();
+}
+
+export async function openDepositAccount(
+  token: string,
+  id: number,
+  data: { account_number: string; deposit_threshold: number },
+) {
+  const res = await fetch(`/accounts/deposits/${id}/open`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to open account');
+  return res.json();
+}
+
+export async function recordAccountDeposit(token: string, id: number, amount: number) {
+  const res = await fetch(`/accounts/deposits/${id}/deposit`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({ amount }),
+  });
+  if (!res.ok) throw new Error('Failed to record deposit');
+  return res.json();
+}
+
 export async function getLoanApplications(token: string, status?: string) {
   const url = status ? `/loan-applications?status=${status}` : '/loan-applications';
   const res = await fetch(url, { headers: headers(token) });

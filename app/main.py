@@ -836,6 +836,57 @@ def record_deposit(
     return request
 
 
+@app.get("/accounts/deposits/pending", response_model=List[AccountOpening])
+def list_pending_deposits(
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    openings = repos.account_openings.list()
+    return [
+        o
+        for o in openings
+        if o.status in (SubmissionStatus.SUBMITTED, SubmissionStatus.IN_PROGRESS)
+    ]
+
+
+@app.post("/accounts/deposits/{req_id}/open", response_model=AccountOpening)
+def open_deposit_account(
+    req_id: int,
+    details: AccountSetup,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    request = repos.account_openings.get(req_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if details.deposit_threshold <= 0:
+        raise HTTPException(status_code=400, detail="Deposit threshold must be positive")
+    request.account_number = details.account_number
+    request.deposit_threshold = details.deposit_threshold
+    request.status = SubmissionStatus.IN_PROGRESS
+    repos.account_openings.add(request)
+    return request
+
+
+@app.post("/accounts/deposits/{req_id}/deposit", response_model=AccountOpening)
+def record_account_deposit(
+    req_id: int,
+    deposit: Deposit,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    request = repos.account_openings.get(req_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if deposit.amount <= 0:
+        raise HTTPException(status_code=400, detail="Deposit amount must be positive")
+    request.deposits.append(deposit.amount)
+    if request.deposit_threshold is not None and sum(request.deposits) >= request.deposit_threshold:
+        request.status = SubmissionStatus.COMPLETED
+    repos.account_openings.add(request)
+    return request
+
+
 @app.post("/loan-applications", response_model=LoanApplication)
 def submit_loan_application(
     application: LoanApplication,
