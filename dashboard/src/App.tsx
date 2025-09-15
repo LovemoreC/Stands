@@ -11,6 +11,8 @@ import AccountOpeningDetail from './pages/AccountOpeningDetail';
 import LoanApplications from './pages/LoanApplications';
 import AdminDashboard from './pages/AdminDashboard';
 import ComplianceDashboard from './pages/ComplianceDashboard';
+import Deposits from './pages/Deposits';
+import DepositDetail from './pages/DepositDetail';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -27,6 +29,7 @@ const App: React.FC = () => {
               <Link to="/mandates">Mandates</Link> |{' '}
               <Link to="/account-openings">Account Openings</Link> |{' '}
               <Link to="/loan-applications">Loan Applications</Link> |{' '}
+              <Link to="/deposits">Deposits</Link> |{' '}
             </>
           )}
           {auth.role === 'manager' && (
@@ -87,6 +90,22 @@ const App: React.FC = () => {
           element={
             <ProtectedRoute roles={["admin"]}>
               <LoanApplications />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/deposits"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <Deposits />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/deposits/:id"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <DepositDetail />
             </ProtectedRoute>
           }
         />
