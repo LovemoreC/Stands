@@ -49,7 +49,7 @@ To build and run the application with Docker Compose:
  docker-compose up --build
 ```
 
-This will build the image from the included `Dockerfile`, start the `web` service on port 8000, and persist the SQLite database in a named volume (`sqlite_data`). The environment variable `DATABASE_URL=sqlite:///app.db` is provided to the container.
+This will build the image from the included `Dockerfile`, start the `web` service on port 8000, and persist the SQLite database in a named volume (`sqlite_data`) mounted at `/app/data`. The environment variable `DATABASE_URL=sqlite:///data/app.db` is provided to the container.
 
 ## Authentication
 
