@@ -735,6 +735,18 @@ def get_agreement(
     return agreement
 
 
+@app.get("/agreements/{agreement_id}/document")
+def view_agreement_document(
+    agreement_id: int,
+    _: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    agreement = repos.agreements.get(agreement_id)
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    return Response(content=agreement.document, media_type="text/plain")
+
+
 @app.put("/agreements/{agreement_id}/sign", response_model=Agreement)
 def sign_agreement(
     agreement_id: int,
@@ -758,6 +770,14 @@ def sign_agreement(
             f"{timestamp}: customer signed by {agent.username}"
         )
     repos.agreements.add(agreement)
+
+    if agreement.bank_signature and agreement.customer_signature:
+        message = (
+            f"Agreement {agreement_id} fully signed; notify Loan Accounts Opening Team"
+        )
+        if message not in repos.notifications.list():
+            repos.notifications.append(message)
+
     return agreement
 
 
@@ -802,8 +822,5 @@ def execute_agreement(
     stand = repos.stands.get(agreement.property_id)
     stand.status = PropertyStatus.SOLD
     repos.stands.add(stand)
-    repos.notifications.append(
-        f"Agreement {agreement_id} executed; notify Loan Accounts Opening Team"
-    )
     repos.agreements.add(agreement)
     return agreement
