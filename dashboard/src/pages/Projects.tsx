@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../auth';
-import { getProjects, createProject } from '../api';
+import { useProjects, createProject } from '../../frontend/src/api/projects';
 
 interface Project {
   id: number;
@@ -9,15 +9,9 @@ interface Project {
 
 const Projects: React.FC = () => {
   const { auth } = useAuth();
-  const [projects, setProjects] = React.useState<Project[]>([]);
+  const { projects, setProjects } = useProjects(auth?.token);
   const [search, setSearch] = React.useState('');
   const [form, setForm] = React.useState({ id: '', name: '' });
-
-  React.useEffect(() => {
-    if (auth) {
-      getProjects(auth.token).then(setProjects).catch(console.error);
-    }
-  }, [auth]);
 
   const filtered = projects.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
