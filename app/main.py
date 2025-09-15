@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from openpyxl import load_workbook, Workbook
 from .database import init_db, get_session, SessionLocal
 from .repositories import Repositories
+from .projects import ProjectsService
 from .reporting import (
     generate_properties_report,
     generate_deposits_report,
@@ -47,6 +48,12 @@ init_db()
 
 def get_repositories(session=Depends(get_session)) -> Repositories:
     return Repositories(session)
+
+
+def get_projects_service(
+    repos: Repositories = Depends(get_repositories),
+) -> ProjectsService:
+    return ProjectsService(repos)
 
 
 def hash_password(password: str) -> str:
@@ -147,34 +154,85 @@ def login(data: LoginRequest, repos: Repositories = Depends(get_repositories)):
 def create_project(
     project: Project,
     _: Agent = Depends(require_admin),
-    repos: Repositories = Depends(get_repositories),
+    service: ProjectsService = Depends(get_projects_service),
 ):
-    if repos.projects.get(project.id):
-        raise HTTPException(status_code=400, detail="Project ID exists")
-    repos.projects.add(project)
-    return project
+    return service.create_project(project)
 
 
 @app.get("/projects", response_model=List[Project])
 def list_projects(
     _: Agent = Depends(get_current_agent),
-    repos: Repositories = Depends(get_repositories),
+    service: ProjectsService = Depends(get_projects_service),
 ):
-    return repos.projects.list()
+    return service.list_projects()
+
+
+@app.put("/projects/{project_id}", response_model=Project)
+def update_project(
+    project_id: int,
+    project: Project,
+    _: Agent = Depends(require_admin),
+    service: ProjectsService = Depends(get_projects_service),
+):
+    return service.update_project(project_id, project)
+
+
+@app.delete("/projects/{project_id}", response_model=Project)
+def delete_project(
+    project_id: int,
+    _: Agent = Depends(require_admin),
+    service: ProjectsService = Depends(get_projects_service),
+):
+    return service.delete_project(project_id)
+
+
+@app.get("/projects/{project_id}/stands", response_model=List[Stand])
+def list_project_stands(
+    project_id: int,
+    _: Agent = Depends(get_current_agent),
+    service: ProjectsService = Depends(get_projects_service),
+):
+    return service.list_stands(project_id)
+
+
+@app.post("/projects/{project_id}/stands", response_model=Stand)
+def create_project_stand(
+    project_id: int,
+    stand: Stand,
+    _: Agent = Depends(require_admin),
+    service: ProjectsService = Depends(get_projects_service),
+):
+    return service.create_stand(project_id, stand)
+
+
+@app.put("/projects/{project_id}/stands/{stand_id}", response_model=Stand)
+def update_project_stand(
+    project_id: int,
+    stand_id: int,
+    stand: Stand,
+    _: Agent = Depends(require_admin),
+    service: ProjectsService = Depends(get_projects_service),
+):
+    return service.update_stand(project_id, stand_id, stand)
+
+
+@app.delete("/projects/{project_id}/stands/{stand_id}", response_model=Stand)
+def delete_project_stand(
+    project_id: int,
+    stand_id: int,
+    _: Agent = Depends(require_admin),
+    service: ProjectsService = Depends(get_projects_service),
+):
+    return service.delete_stand(project_id, stand_id)
 
 
 @app.post("/stands", response_model=Stand)
 def create_stand(
     stand: Stand,
     _: Agent = Depends(require_admin),
-    repos: Repositories = Depends(get_repositories),
+    service: ProjectsService = Depends(get_projects_service),
 ):
-    if repos.stands.get(stand.id):
-        raise HTTPException(status_code=400, detail="Stand ID exists")
-    if not repos.projects.get(stand.project_id):
-        raise HTTPException(status_code=404, detail="Project not found")
-    repos.stands.add(stand)
-    return stand
+    return service.create_stand(stand.project_id, stand)
 
 
 @app.put("/stands/{stand_id}", response_model=Stand)
@@ -182,17 +240,9 @@ def update_stand(
     stand_id: int,
     stand: Stand,
     _: Agent = Depends(require_admin),
-    repos: Repositories = Depends(get_repositories),
+    service: ProjectsService = Depends(get_projects_service),
 ):
-    existing = repos.stands.get(stand_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail="Stand not found")
-    if existing.status == PropertyStatus.SOLD:
-        raise HTTPException(status_code=400, detail="Stand already sold")
-    if not repos.projects.get(stand.project_id):
-        raise HTTPException(status_code=404, detail="Project not found")
-    repos.stands.add(stand)
-    return stand
+    return service.update_stand(stand.project_id, stand_id, stand)
 
 
 @app.delete("/stands/{stand_id}", response_model=Stand)

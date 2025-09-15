@@ -1,6 +1,10 @@
 import React from 'react';
 import { useAuth } from '../auth';
-import { getStands, createStand, deleteStand } from '../api';
+import {
+  useProjectStands,
+  createStand as createProjectStand,
+  deleteStand as deleteProjectStand,
+} from '../../frontend/src/api/projects';
 
 interface Stand {
   id: number;
@@ -12,15 +16,13 @@ interface Stand {
 
 const Stands: React.FC = () => {
   const { auth } = useAuth();
-  const [stands, setStands] = React.useState<Stand[]>([]);
+  const [projectFilter, setProjectFilter] = React.useState('');
+  const { stands, setStands } = useProjectStands(
+    auth?.token,
+    projectFilter ? Number(projectFilter) : undefined,
+  );
   const [search, setSearch] = React.useState('');
   const [form, setForm] = React.useState({ id: '', project_id: '', name: '', size: '', price: '' });
-
-  React.useEffect(() => {
-    if (auth) {
-      getStands(auth.token).then(setStands).catch(console.error);
-    }
-  }, [auth]);
 
   const filtered = stands.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -35,7 +37,7 @@ const Stands: React.FC = () => {
       price: Number(form.price),
     };
     try {
-      const stand = await createStand(auth.token, payload);
+      const stand = await createProjectStand(auth.token, payload.project_id, payload);
       setStands([...stands, stand]);
       setForm({ id: '', project_id: '', name: '', size: '', price: '' });
     } catch (err) {
@@ -46,7 +48,9 @@ const Stands: React.FC = () => {
   const remove = async (id: number) => {
     if (!auth) return;
     try {
-      await deleteStand(auth.token, id);
+      const stand = stands.find(s => s.id === id);
+      if (!stand) return;
+      await deleteProjectStand(auth.token, stand.project_id, id);
       setStands(stands.filter(s => s.id !== id));
     } catch (err) {
       console.error(err);
@@ -56,6 +60,11 @@ const Stands: React.FC = () => {
   return (
     <div>
       <h2>Stands</h2>
+      <input
+        placeholder="Project ID"
+        value={projectFilter}
+        onChange={e => setProjectFilter(e.target.value)}
+      />
       <form onSubmit={submit}>
         <input placeholder="ID" value={form.id} onChange={e => setForm({ ...form, id: e.target.value })} required />
         <input placeholder="Project ID" value={form.project_id} onChange={e => setForm({ ...form, project_id: e.target.value })} required />
