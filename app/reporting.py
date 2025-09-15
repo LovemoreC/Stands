@@ -40,3 +40,43 @@ def generate_properties_report(
     writer.writeheader()
     writer.writerows(rows)
     return output.getvalue()
+
+
+def generate_deposits_report(repos: Repositories) -> str:
+    """Generate CSV report of account deposits."""
+    rows = []
+    for req in repos.account_openings.list():
+        rows.append(
+            {
+                "account_id": req.id,
+                "realtor": req.realtor,
+                "total_deposits": sum(req.deposits),
+            }
+        )
+    output = StringIO()
+    fieldnames = ["account_id", "realtor", "total_deposits"]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+
+def generate_loans_report(repos: Repositories) -> str:
+    """Generate CSV report of loan applications."""
+    rows = []
+    for app in repos.loan_applications.list():
+        rows.append(
+            {
+                "loan_id": app.id,
+                "realtor": app.realtor,
+                "account_id": app.account_id,
+                "status": app.status.value,
+                "decision": app.decision.value if app.decision else "",
+            }
+        )
+    output = StringIO()
+    fieldnames = ["loan_id", "realtor", "account_id", "status", "decision"]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()

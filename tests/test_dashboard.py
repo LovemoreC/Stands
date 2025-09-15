@@ -102,6 +102,13 @@ def test_dashboards_and_audit_log():
     resp = client.get("/audit-log", headers=compliance_headers)
     assert resp.status_code == 200
     log = resp.json()
-    assert any("/projects" in entry for entry in log)
+    assert any(entry["action"].endswith("/projects") for entry in log)
+
+    resp = client.get(
+        "/audit-log", headers=compliance_headers, params={"user": "admin"}
+    )
+    assert resp.status_code == 200
+    filtered = resp.json()
+    assert all(entry["user"] == "admin" for entry in filtered)
     reset_state()
 

@@ -3,6 +3,23 @@ export const headers = (token: string) => ({
   'X-Token': token,
 });
 
+export async function getDashboard(token: string) {
+  const res = await fetch('/dashboard', { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load dashboard');
+  return res.json();
+}
+
+export async function getAuditLog(
+  token: string,
+  filters: { start?: string; end?: string; user?: string; action?: string } = {}
+) {
+  const params = new URLSearchParams(filters as Record<string, string>);
+  const url = params.toString() ? `/audit-log?${params}` : '/audit-log';
+  const res = await fetch(url, { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load audit log');
+  return res.json();
+}
+
 export async function getProjects(token: string) {
   const res = await fetch('/projects', { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load projects');
