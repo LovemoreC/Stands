@@ -1,15 +1,11 @@
 import sys
 sys.path.append(".")
 
-from fastapi.testclient import TestClient
-from app.main import app
 from app.models import SubmissionStatus
 from app.database import drop_db, init_db
 
-client = TestClient(app)
 
-
-def setup_agents():
+def setup_agents(client):
     drop_db()
     init_db()
     client.post(
@@ -30,8 +26,8 @@ def setup_agents():
     return {"admin": admin_token, "realtor": realtor_token}
 
 
-def test_submissions_and_status_updates():
-    tokens = setup_agents()
+def test_submissions_and_status_updates(client):
+    tokens = setup_agents(client)
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
@@ -81,8 +77,8 @@ def test_submissions_and_status_updates():
     assert resp.json()["status"] == SubmissionStatus.COMPLETED.value
 
 
-def test_account_opening_deposit_tracking():
-    tokens = setup_agents()
+def test_account_opening_deposit_tracking(client):
+    tokens = setup_agents(client)
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
@@ -116,8 +112,8 @@ def test_account_opening_deposit_tracking():
     assert resp.json()["status"] == SubmissionStatus.COMPLETED.value
 
 
-def test_loan_application_flow():
-    tokens = setup_agents()
+def test_loan_application_flow(client):
+    tokens = setup_agents(client)
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
@@ -197,8 +193,8 @@ def test_loan_application_flow():
     assert resp.json()["reason"] == "Insufficient credit"
 
 
-def test_account_opening_queue_listing():
-    tokens = setup_agents()
+def test_account_opening_queue_listing(client):
+    tokens = setup_agents(client)
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
@@ -234,8 +230,8 @@ def test_account_opening_queue_listing():
     assert ids == {10, 20}
 
 
-def test_loan_application_queue_listing_and_agreement_generation():
-    tokens = setup_agents()
+def test_loan_application_queue_listing_and_agreement_generation(client):
+    tokens = setup_agents(client)
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 

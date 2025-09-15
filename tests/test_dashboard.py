@@ -1,11 +1,7 @@
 import sys
 sys.path.append('.')
 
-from fastapi.testclient import TestClient
-from app.main import app
 from app.database import drop_db, init_db
-
-client = TestClient(app)
 
 
 def reset_state():
@@ -13,7 +9,7 @@ def reset_state():
     init_db()
 
 
-def register_agents():
+def register_agents(client):
     creds = {
         "admin": "admin",
         "manager": "manager",
@@ -43,7 +39,7 @@ def register_agents():
     return tokens
 
 
-def setup_data(admin_headers, agent_headers):
+def setup_data(client, admin_headers, agent_headers):
     project = {"id": 100, "name": "Proj"}
     client.post("/projects", json=project, headers=admin_headers)
     stand = {"id": 100, "project_id": 100, "name": "Stand1", "size": 100, "price": 1000}
@@ -86,15 +82,15 @@ def setup_data(admin_headers, agent_headers):
     )
 
 
-def test_dashboards_and_audit_log():
+def test_dashboards_and_audit_log(client):
     reset_state()
-    tokens = register_agents()
+    tokens = register_agents(client)
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     manager_headers = {"Authorization": f"Bearer {tokens['manager']}"}
     compliance_headers = {"Authorization": f"Bearer {tokens['compliance']}"}
     agent_headers = {"Authorization": f"Bearer {tokens['agentA']}"}
 
-    setup_data(admin_headers, agent_headers)
+    setup_data(client, admin_headers, agent_headers)
 
     resp = client.get("/dashboard", headers=manager_headers)
     assert resp.status_code == 200

@@ -70,7 +70,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-init_db()
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
 
 
 def get_repositories(session=Depends(get_session)) -> Repositories:

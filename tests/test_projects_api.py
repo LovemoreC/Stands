@@ -1,11 +1,7 @@
 import sys
 sys.path.append('.')
 
-from fastapi.testclient import TestClient
-from app.main import app
 from app.database import drop_db, init_db
-
-client = TestClient(app)
 
 
 def setup_function():
@@ -13,7 +9,7 @@ def setup_function():
     init_db()
 
 
-def auth_headers(username: str):
+def auth_headers(client, username: str):
     client.post(
         "/agents",
         json={"username": username, "role": "admin", "password": username},
@@ -24,8 +20,8 @@ def auth_headers(username: str):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_project_and_stand_crud():
-    headers = auth_headers("admin")
+def test_project_and_stand_crud(client):
+    headers = auth_headers(client, "admin")
 
     # create project
     project = {"id": 1, "name": "P"}

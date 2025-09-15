@@ -1,14 +1,14 @@
 import sys
+import sys
 sys.path.append('.')
 
-from fastapi.testclient import TestClient
-from app.main import app
+import pytest
+
 from app.database import drop_db, init_db
 
-client = TestClient(app)
 
-
-def setup_function():
+@pytest.fixture()
+def admin_headers(client):
     drop_db()
     init_db()
     client.post(
@@ -17,11 +17,10 @@ def setup_function():
     token = client.post(
         "/auth/login", json={"username": "admin", "password": "a"}
     ).json()["token"]
-    global admin_headers
-    admin_headers = {"Authorization": f"Bearer {token}"}
+    return {"Authorization": f"Bearer {token}"}
 
 
-def test_import_csv_with_errors():
+def test_import_csv_with_errors(client, admin_headers):
     csv_content = (
         "project_id,project_name,stand_id,stand_name,size,price\n"
         "1,Proj,1,Stand1,100,1000\n"

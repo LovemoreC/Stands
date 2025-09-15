@@ -1,16 +1,13 @@
 import sys
 sys.path.append(".")
 
-from fastapi.testclient import TestClient
-from app.main import app
 from app.models import PropertyStatus
 from app.database import drop_db, init_db
 
-client = TestClient(app)
 
-
-def setup_data():
+def setup_data(client):
     reset_state()
+
     def create_and_login(username, role, headers=None):
         client.post(
             "/agents",
@@ -61,8 +58,8 @@ def reset_state():
     init_db()
 
 
-def test_agreement_flow():
-    admin_headers, realtor_headers, intruder_headers = setup_data()
+def test_agreement_flow(client):
+    admin_headers, realtor_headers, intruder_headers = setup_data(client)
 
     resp = client.post(
         "/agreements",
