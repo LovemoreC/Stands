@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File, Form, Response
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from datetime import datetime
 import secrets
@@ -15,8 +16,9 @@ from .repositories import Repositories
 from .projects import ProjectsService
 from .reporting import (
     generate_properties_report,
-    generate_deposits_report,
+    generate_mandates_report,
     generate_loans_report,
+    stream_csv,
 )
 from .models import (
     Project,
@@ -496,61 +498,88 @@ def properties_report(
     _: Agent = Depends(require_admin),
     repos: Repositories = Depends(get_repositories),
 ):
-    csv_data = generate_properties_report(repos, status)
+    rows = generate_properties_report(repos, status)
+    fieldnames = [
+        "project_id",
+        "project_name",
+        "stand_id",
+        "stand_name",
+        "price",
+        "status",
+        "mandate_status",
+    ]
     if format == "excel":
+        data = list(rows)
         wb = Workbook()
         ws = wb.active
-        for row in csv.reader(csv_data.splitlines()):
-            ws.append(row)
+        ws.append(fieldnames)
+        for row in data:
+            ws.append([row[f] for f in fieldnames])
         stream = BytesIO()
         wb.save(stream)
         return Response(
             content=stream.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-    return Response(content=csv_data, media_type="text/csv")
+    return StreamingResponse(stream_csv(rows, fieldnames), media_type="text/csv")
 
 
-@app.get("/reports/deposits")
-def deposits_report(
+@app.get("/reports/mandates")
+def mandates_report(
+    status: Optional[MandateStatus] = None,
     format: str = "csv",
     _: Agent = Depends(require_admin),
     repos: Repositories = Depends(get_repositories),
 ):
-    csv_data = generate_deposits_report(repos)
+    rows = generate_mandates_report(repos, status)
+    fieldnames = [
+        "project_id",
+        "project_name",
+        "stand_id",
+        "stand_name",
+        "agent",
+        "status",
+        "expiration_date",
+    ]
     if format == "excel":
+        data = list(rows)
         wb = Workbook()
         ws = wb.active
-        for row in csv.reader(csv_data.splitlines()):
-            ws.append(row)
+        ws.append(fieldnames)
+        for row in data:
+            ws.append([row[f] for f in fieldnames])
         stream = BytesIO()
         wb.save(stream)
         return Response(
             content=stream.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-    return Response(content=csv_data, media_type="text/csv")
+    return StreamingResponse(stream_csv(rows, fieldnames), media_type="text/csv")
 
 
 @app.get("/reports/loans")
 def loans_report(
+    status: Optional[SubmissionStatus] = None,
     format: str = "csv",
     _: Agent = Depends(require_admin),
     repos: Repositories = Depends(get_repositories),
 ):
-    csv_data = generate_loans_report(repos)
+    rows = generate_loans_report(repos, status)
+    fieldnames = ["loan_id", "realtor", "account_id", "status", "decision"]
     if format == "excel":
+        data = list(rows)
         wb = Workbook()
         ws = wb.active
-        for row in csv.reader(csv_data.splitlines()):
-            ws.append(row)
+        ws.append(fieldnames)
+        for row in data:
+            ws.append([row[f] for f in fieldnames])
         stream = BytesIO()
         wb.save(stream)
         return Response(
             content=stream.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-    return Response(content=csv_data, media_type="text/csv")
+    return StreamingResponse(stream_csv(rows, fieldnames), media_type="text/csv")
 
 
 # ---- Submission endpoints ----

@@ -39,8 +39,10 @@ const ComplianceDashboard: React.FC = () => {
           <p>Total Deposits: {data.deposits}</p>
           <p>Loans Approved: {data.loan_approvals?.approved || 0}</p>
           <p>Loans Rejected: {data.loan_approvals?.rejected || 0}</p>
-          <button onClick={() => exportReport('deposits', 'csv')}>Export Deposits CSV</button>
-          <button onClick={() => exportReport('deposits', 'excel')}>Export Deposits Excel</button>
+          <button onClick={() => exportReport('properties', 'csv')}>Export Properties CSV</button>
+          <button onClick={() => exportReport('properties', 'excel')}>Export Properties Excel</button>
+          <button onClick={() => exportReport('mandates', 'csv')}>Export Mandates CSV</button>
+          <button onClick={() => exportReport('mandates', 'excel')}>Export Mandates Excel</button>
           <button onClick={() => exportReport('loans', 'csv')}>Export Loans CSV</button>
           <button onClick={() => exportReport('loans', 'excel')}>Export Loans Excel</button>
         </div>

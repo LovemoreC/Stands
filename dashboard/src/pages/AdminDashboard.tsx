@@ -41,14 +41,14 @@ const AdminDashboard: React.FC = () => {
               <li key={k}>{k}: {v as number}</li>
             ))}
           </ul>
+          <button onClick={() => exportReport('mandates', 'csv')}>Export CSV</button>
+          <button onClick={() => exportReport('mandates', 'excel')}>Export Excel</button>
         </div>
       )}
       {data?.deposits !== undefined && (
         <div>
           <h3>Deposits</h3>
           <p>Total Deposits: {data.deposits}</p>
-          <button onClick={() => exportReport('deposits', 'csv')}>Export CSV</button>
-          <button onClick={() => exportReport('deposits', 'excel')}>Export Excel</button>
         </div>
       )}
       {data?.loan_approvals && (
