@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { authHeaders } from './auth';
+import apiFetch from './client';
 
 export interface Project {
   id: number;
@@ -16,44 +16,31 @@ export interface Stand {
   status?: string;
 }
 
-const jsonHeaders = () => ({
-  'Content-Type': 'application/json',
-  ...authHeaders(),
-});
-
 export async function listProjects(): Promise<Project[]> {
-  const res = await fetch('/projects', { headers: jsonHeaders() });
-  if (!res.ok) throw new Error('Failed to load projects');
-  return res.json();
+  return apiFetch('/projects');
 }
 
 export async function createProject(project: Project): Promise<Project> {
-  const res = await fetch('/projects', {
+  return apiFetch('/projects', {
     method: 'POST',
-    headers: jsonHeaders(),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(project),
   });
-  if (!res.ok) throw new Error('Failed to create project');
-  return res.json();
 }
 
-export async function updateProject(id: number, project: Project): Promise<Project> {
-  const res = await fetch(`/projects/${id}`, {
+export async function updateProject(
+  id: number,
+  project: Project,
+): Promise<Project> {
+  return apiFetch(`/projects/${id}`, {
     method: 'PUT',
-    headers: jsonHeaders(),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(project),
   });
-  if (!res.ok) throw new Error('Failed to update project');
-  return res.json();
 }
 
 export async function deleteProject(id: number): Promise<Project> {
-  const res = await fetch(`/projects/${id}`, {
-    method: 'DELETE',
-    headers: jsonHeaders(),
-  });
-  if (!res.ok) throw new Error('Failed to delete project');
-  return res.json();
+  return apiFetch(`/projects/${id}`, { method: 'DELETE' });
 }
 
 export function useProjects() {
@@ -65,19 +52,18 @@ export function useProjects() {
 }
 
 export async function listStands(projectId: number): Promise<Stand[]> {
-  const res = await fetch(`/projects/${projectId}/stands`, { headers: jsonHeaders() });
-  if (!res.ok) throw new Error('Failed to load stands');
-  return res.json();
+  return apiFetch(`/projects/${projectId}/stands`);
 }
 
-export async function createStand(projectId: number, stand: Stand): Promise<Stand> {
-  const res = await fetch(`/projects/${projectId}/stands`, {
+export async function createStand(
+  projectId: number,
+  stand: Stand,
+): Promise<Stand> {
+  return apiFetch(`/projects/${projectId}/stands`, {
     method: 'POST',
-    headers: jsonHeaders(),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(stand),
   });
-  if (!res.ok) throw new Error('Failed to create stand');
-  return res.json();
 }
 
 export async function updateStand(
@@ -85,22 +71,20 @@ export async function updateStand(
   standId: number,
   stand: Stand,
 ): Promise<Stand> {
-  const res = await fetch(`/projects/${projectId}/stands/${standId}`, {
+  return apiFetch(`/projects/${projectId}/stands/${standId}`, {
     method: 'PUT',
-    headers: jsonHeaders(),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(stand),
   });
-  if (!res.ok) throw new Error('Failed to update stand');
-  return res.json();
 }
 
-export async function deleteStand(projectId: number, standId: number): Promise<Stand> {
-  const res = await fetch(`/projects/${projectId}/stands/${standId}`, {
+export async function deleteStand(
+  projectId: number,
+  standId: number,
+): Promise<Stand> {
+  return apiFetch(`/projects/${projectId}/stands/${standId}`, {
     method: 'DELETE',
-    headers: jsonHeaders(),
   });
-  if (!res.ok) throw new Error('Failed to delete stand');
-  return res.json();
 }
 
 export function useProjectStands(projectId: number | undefined) {

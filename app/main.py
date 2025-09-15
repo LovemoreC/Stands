@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File, Form, Response
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from datetime import datetime, timedelta
 import hashlib
@@ -57,6 +58,14 @@ from .models import (
 SECRET_KEY = "changeme"
 
 app = FastAPI(title="Property Management API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 init_db()
 
 

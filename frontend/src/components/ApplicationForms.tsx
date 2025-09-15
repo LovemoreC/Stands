@@ -16,6 +16,7 @@ export function OfferApplicationForm({
   const [propertyId, setPropertyId] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>('idle');
+  const [error, setError] = useState('');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,8 +30,10 @@ export function OfferApplicationForm({
         file,
       });
       setStatus('success');
-    } catch {
+      setError('');
+    } catch (err) {
       setStatus('error');
+      setError(err instanceof Error ? err.message : 'Failed to submit offer');
     }
   };
 
@@ -46,7 +49,7 @@ export function OfferApplicationForm({
       <button type="submit">Submit Offer</button>
       {status === 'uploading' && <p>Uploading...</p>}
       {status === 'success' && <p>Uploaded!</p>}
-      {status === 'error' && <p>Error</p>}
+      {status === 'error' && <p>{error}</p>}
     </form>
   );
 }
@@ -60,6 +63,7 @@ export function PropertyApplicationForm({
   const [propertyId, setPropertyId] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>('idle');
+  const [error, setError] = useState('');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,8 +77,10 @@ export function PropertyApplicationForm({
         file,
       });
       setStatus('success');
-    } catch {
+      setError('');
+    } catch (err) {
       setStatus('error');
+      setError(err instanceof Error ? err.message : 'Failed to submit property app');
     }
   };
 
@@ -90,7 +96,7 @@ export function PropertyApplicationForm({
       <button type="submit">Submit Property App</button>
       {status === 'uploading' && <p>Uploading...</p>}
       {status === 'success' && <p>Uploaded!</p>}
-      {status === 'error' && <p>Error</p>}
+      {status === 'error' && <p>{error}</p>}
     </form>
   );
 }
@@ -103,6 +109,7 @@ export function AccountApplicationForm({
   const [id, setId] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>('idle');
+  const [error, setError] = useState('');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,8 +122,10 @@ export function AccountApplicationForm({
         file,
       });
       setStatus('success');
-    } catch {
+      setError('');
+    } catch (err) {
       setStatus('error');
+      setError(err instanceof Error ? err.message : 'Failed to submit account app');
     }
   };
 
@@ -127,7 +136,7 @@ export function AccountApplicationForm({
       <button type="submit">Submit Account App</button>
       {status === 'uploading' && <p>Uploading...</p>}
       {status === 'success' && <p>Uploaded!</p>}
-      {status === 'error' && <p>Error</p>}
+      {status === 'error' && <p>{error}</p>}
     </form>
   );
 }

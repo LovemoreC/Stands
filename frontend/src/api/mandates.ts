@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { authHeaders } from './auth';
+import apiFetch from './client';
 
 export interface Mandate {
   id: number;
@@ -16,41 +16,33 @@ export interface MandateHistoryEntry {
   status: string;
 }
 
-const jsonHeaders = () => ({
-  'Content-Type': 'application/json',
-  ...authHeaders(),
-});
-
 export async function listMandates(): Promise<Mandate[]> {
-  const res = await fetch('/mandates', { headers: jsonHeaders() });
-  if (!res.ok) throw new Error('Failed to load mandates');
-  return res.json();
+  return apiFetch('/mandates');
 }
 
 export async function createMandate(mandate: Mandate): Promise<Mandate> {
-  const res = await fetch('/mandates', {
+  return apiFetch('/mandates', {
     method: 'POST',
-    headers: jsonHeaders(),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(mandate),
   });
-  if (!res.ok) throw new Error('Failed to create mandate');
-  return res.json();
 }
 
-export async function updateMandate(id: number, mandate: Mandate): Promise<Mandate> {
-  const res = await fetch(`/mandates/${id}`, {
+export async function updateMandate(
+  id: number,
+  mandate: Mandate,
+): Promise<Mandate> {
+  return apiFetch(`/mandates/${id}`, {
     method: 'PUT',
-    headers: jsonHeaders(),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(mandate),
   });
-  if (!res.ok) throw new Error('Failed to update mandate');
-  return res.json();
 }
 
-export async function getMandateHistory(id: number): Promise<MandateHistoryEntry[]> {
-  const res = await fetch(`/mandates/${id}/history`, { headers: jsonHeaders() });
-  if (!res.ok) throw new Error('Failed to load mandate history');
-  return res.json();
+export async function getMandateHistory(
+  id: number,
+): Promise<MandateHistoryEntry[]> {
+  return apiFetch(`/mandates/${id}/history`);
 }
 
 export function useMandates() {
