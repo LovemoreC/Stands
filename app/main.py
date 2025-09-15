@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import csv
 import base64
+import uuid
 from io import BytesIO
 from pydantic import BaseModel
 from openpyxl import load_workbook, Workbook
@@ -1040,6 +1041,46 @@ def list_notifications(
     repos: Repositories = Depends(get_repositories),
 ):
     return repos.notifications.list()
+
+
+class LoanAccountRequest(BaseModel):
+    agreement_id: int
+
+
+@app.post("/loan-accounts", response_model=dict)
+def create_loan_account(
+    payload: LoanAccountRequest,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    agreement = repos.agreements.get(payload.agreement_id)
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    if agreement.status != AgreementStatus.SIGNED:
+        raise HTTPException(status_code=400, detail="Agreement not fully signed")
+    loan_application = repos.loan_applications.get(agreement.loan_application_id)
+    if not loan_application:
+        raise HTTPException(status_code=404, detail="Loan application not found")
+    if loan_application.loan_account_number:
+        raise HTTPException(status_code=400, detail="Loan account already created")
+
+    account_number = f"LN{uuid.uuid4().hex[:8].upper()}"
+    loan_application.loan_account_number = account_number
+    repos.loan_applications.add(loan_application)
+
+    accounts = repos.customer_loan_accounts.get(loan_application.realtor, [])
+    accounts.append(account_number)
+    repos.customer_loan_accounts.set(loan_application.realtor, accounts)
+
+    stand = repos.stands.get(agreement.property_id)
+    if not stand:
+        raise HTTPException(status_code=404, detail="Property not found")
+    if stand.status == PropertyStatus.SOLD:
+        raise HTTPException(status_code=400, detail="Property already sold")
+    stand.status = PropertyStatus.SOLD
+    repos.stands.add(stand)
+
+    return {"account_number": account_number}
 
 
 @app.get("/loan-accounts/{realtor}", response_model=List[str])

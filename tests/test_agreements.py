@@ -117,18 +117,19 @@ def test_agreement_flow():
     assert len(data["versions"]) == 2
     assert len(data["audit_log"]) >= 3
 
-    resp = client.put(
-        "/agreements/1/execute",
-        json={"loan_account_number": "LN1"},
+    resp = client.post(
+        "/loan-accounts",
+        json={"agreement_id": 1},
         headers=admin_headers,
     )
     assert resp.status_code == 200
+    account_number = resp.json()["account_number"]
     stand_resp = client.get("/stands/1", headers=admin_headers)
     assert stand_resp.json()["status"] == PropertyStatus.SOLD.value
     loan_resp = client.get("/loan-applications/1", headers=realtor_headers)
-    assert loan_resp.json()["loan_account_number"] == "LN1"
+    assert loan_resp.json()["loan_account_number"] == account_number
     acct_resp = client.get("/loan-accounts/realtor", headers=admin_headers)
-    assert acct_resp.json() == ["LN1"]
+    assert acct_resp.json() == [account_number]
 
     resp = client.put(
         "/stands/1",

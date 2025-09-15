@@ -303,6 +303,16 @@ export async function signAgreement(
   return res.json();
 }
 
+export async function openLoanAccount(token: string, agreementId: number) {
+  const res = await fetch('/loan-accounts', {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({ agreement_id: agreementId }),
+  });
+  if (!res.ok) throw new Error('Failed to open loan account');
+  return res.json();
+}
+
 export async function submitLoan(
   token: string,
   loan: { id: number; borrower: string; amount: number }
