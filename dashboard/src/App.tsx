@@ -9,6 +9,8 @@ import MultiStepForm from './pages/MultiStepForm';
 import AccountOpenings from './pages/AccountOpenings';
 import AccountOpeningDetail from './pages/AccountOpeningDetail';
 import LoanApplications from './pages/LoanApplications';
+import AdminDashboard from './pages/AdminDashboard';
+import ComplianceDashboard from './pages/ComplianceDashboard';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -19,11 +21,22 @@ const App: React.FC = () => {
         <nav>
           {auth.role === 'admin' && (
             <>
+              <Link to="/admin-dashboard">Dashboard</Link> |{' '}
               <Link to="/projects">Projects</Link> |{' '}
               <Link to="/stands">Stands</Link> |{' '}
               <Link to="/mandates">Mandates</Link> |{' '}
               <Link to="/account-openings">Account Openings</Link> |{' '}
               <Link to="/loan-applications">Loan Applications</Link> |{' '}
+            </>
+          )}
+          {auth.role === 'manager' && (
+            <>
+              <Link to="/admin-dashboard">Dashboard</Link> |{' '}
+            </>
+          )}
+          {auth.role === 'compliance' && (
+            <>
+              <Link to="/compliance-dashboard">Dashboard</Link> |{' '}
             </>
           )}
           {auth.role === 'agent' && (
@@ -86,6 +99,22 @@ const App: React.FC = () => {
           }
         />
         <Route
+          path="/admin-dashboard"
+          element={
+            <ProtectedRoute roles={["admin", "manager"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/compliance-dashboard"
+          element={
+            <ProtectedRoute roles={["compliance", "admin"]}>
+              <ComplianceDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/dashboard"
           element={
             <ProtectedRoute roles={["agent"]}>
@@ -109,7 +138,9 @@ const App: React.FC = () => {
                 auth
                   ? auth.role === 'agent'
                     ? '/dashboard'
-                    : '/projects'
+                    : auth.role === 'compliance'
+                      ? '/compliance-dashboard'
+                      : '/admin-dashboard'
                   : '/login'
               }
               replace

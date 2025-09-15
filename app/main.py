@@ -7,10 +7,14 @@ import hmac
 import csv
 from io import BytesIO
 from pydantic import BaseModel
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 from .database import init_db, get_session, SessionLocal
 from .repositories import Repositories
-from .reporting import generate_properties_report
+from .reporting import (
+    generate_properties_report,
+    generate_deposits_report,
+    generate_loans_report,
+)
 from .models import (
     Project,
     Stand,
@@ -120,6 +124,13 @@ class LoginRequest(BaseModel):
 class ImportResult(BaseModel):
     imported: int
     errors: List[str]
+
+
+class AuditEntry(BaseModel):
+    timestamp: str
+    user: str
+    action: str
+    status: int
 
 
 @app.post("/login")
@@ -339,10 +350,64 @@ def import_properties(
 @app.get("/reports/properties")
 def properties_report(
     status: Optional[PropertyStatus] = None,
+    format: str = "csv",
     _: Agent = Depends(require_admin),
     repos: Repositories = Depends(get_repositories),
 ):
     csv_data = generate_properties_report(repos, status)
+    if format == "excel":
+        wb = Workbook()
+        ws = wb.active
+        for row in csv.reader(csv_data.splitlines()):
+            ws.append(row)
+        stream = BytesIO()
+        wb.save(stream)
+        return Response(
+            content=stream.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    return Response(content=csv_data, media_type="text/csv")
+
+
+@app.get("/reports/deposits")
+def deposits_report(
+    format: str = "csv",
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    csv_data = generate_deposits_report(repos)
+    if format == "excel":
+        wb = Workbook()
+        ws = wb.active
+        for row in csv.reader(csv_data.splitlines()):
+            ws.append(row)
+        stream = BytesIO()
+        wb.save(stream)
+        return Response(
+            content=stream.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    return Response(content=csv_data, media_type="text/csv")
+
+
+@app.get("/reports/loans")
+def loans_report(
+    format: str = "csv",
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    csv_data = generate_loans_report(repos)
+    if format == "excel":
+        wb = Workbook()
+        ws = wb.active
+        for row in csv.reader(csv_data.splitlines()):
+            ws.append(row)
+        stream = BytesIO()
+        wb.save(stream)
+        return Response(
+            content=stream.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
     return Response(content=csv_data, media_type="text/csv")
 
 
@@ -683,12 +748,36 @@ def dashboard(
     return data
 
 
-@app.get("/audit-log", response_model=List[str])
+@app.get("/audit-log", response_model=List[AuditEntry])
 def get_audit_log(
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
+    user: Optional[str] = None,
+    action: Optional[str] = None,
     _: Agent = Depends(require_compliance),
     repos: Repositories = Depends(get_repositories),
 ):
-    return repos.audit_log.list()
+    entries = []
+    for entry in repos.audit_log.list():
+        parts = entry.split(" - ")
+        if len(parts) != 4:
+            continue
+        ts_str, username, act, status_str = parts
+        ts = datetime.fromisoformat(ts_str)
+        if start and ts < start:
+            continue
+        if end and ts > end:
+            continue
+        if user and username != user:
+            continue
+        if action and action not in act:
+            continue
+        entries.append(
+            AuditEntry(
+                timestamp=ts_str, user=username, action=act, status=int(status_str)
+            )
+        )
+    return entries
 
 
 # ---- Agreement endpoints ----

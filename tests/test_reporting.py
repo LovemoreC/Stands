@@ -35,6 +35,31 @@ def setup_data():
     )
     client.post("/stands/1/mandate", json={"agent": "agent"}, headers=admin_headers)
     client.put("/stands/1/mandate/accept", headers=agent_headers)
+    client.post(
+        "/account-openings",
+        json={"id": 1, "realtor": "agent"},
+        headers=agent_headers,
+    )
+    client.put(
+        "/account-openings/1/open",
+        json={"account_number": "A1", "deposit_threshold": 100},
+        headers=admin_headers,
+    )
+    client.post(
+        "/account-openings/1/deposit",
+        json={"amount": 100},
+        headers=admin_headers,
+    )
+    client.post(
+        "/loan-applications",
+        json={"id": 1, "realtor": "agent", "account_id": 1, "documents": ["d"]},
+        headers=agent_headers,
+    )
+    client.put(
+        "/loan-applications/1/decision",
+        json={"decision": "approved"},
+        headers=admin_headers,
+    )
     return admin_headers
 
 
@@ -60,3 +85,16 @@ def test_report_filtering():
     data = list(csv.DictReader(resp.text.splitlines()))
     assert len(data) == 1
     assert data[0]["status"] == "sold"
+
+
+def test_deposit_and_loan_reports():
+    admin_headers = setup_data()
+    resp = client.get("/reports/deposits", headers=admin_headers)
+    assert resp.status_code == 200
+    data = list(csv.DictReader(resp.text.splitlines()))
+    assert float(data[0]["total_deposits"]) == 100
+
+    resp = client.get("/reports/loans", headers=admin_headers)
+    assert resp.status_code == 200
+    data = list(csv.DictReader(resp.text.splitlines()))
+    assert data[0]["decision"] == "approved"
