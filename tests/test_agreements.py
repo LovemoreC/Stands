@@ -70,6 +70,10 @@ def test_agreement_flow():
     assert resp.status_code == 200
     assert "Stand1" in resp.json()["document"]
 
+    resp = client.get("/agreements/1/document", headers=admin_headers)
+    assert resp.status_code == 200
+    assert "Stand1" in resp.text
+
     resp = client.put("/agreements/1/sign", headers=intruder_headers)
     assert resp.status_code == 403
 
@@ -80,6 +84,9 @@ def test_agreement_flow():
     resp = client.put("/agreements/1/sign", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["bank_signature"] is not None
+
+    notes_resp = client.get("/notifications", headers=admin_headers)
+    assert any("Loan Accounts Opening Team" in n for n in notes_resp.json())
 
     resp = client.post(
         "/agreements/1/upload",
@@ -104,8 +111,6 @@ def test_agreement_flow():
     assert loan_resp.json()["loan_account_number"] == "LN1"
     acct_resp = client.get("/loan-accounts/realtor", headers=admin_headers)
     assert acct_resp.json() == ["LN1"]
-    notes_resp = client.get("/notifications", headers=admin_headers)
-    assert any("Loan Accounts Opening Team" in n for n in notes_resp.json())
 
     resp = client.put(
         "/stands/1",
