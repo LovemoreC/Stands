@@ -1,35 +1,67 @@
 import React from 'react';
 import { useAuth } from '../auth';
-import { getStands, assignMandate } from '../api';
+import {
+  listMandates,
+  createMandate,
+  updateMandate,
+  getMandateHistory,
+} from '../api';
 
-interface Stand {
+interface Mandate {
   id: number;
-  name: string;
-  mandate?: { agent: string; status: string };
+  project_id: number;
+  agent: string;
+  status: string;
 }
 
 const Mandates: React.FC = () => {
   const { auth } = useAuth();
-  const [stands, setStands] = React.useState<Stand[]>([]);
-  const [search, setSearch] = React.useState('');
-  const [inputs, setInputs] = React.useState<Record<number, string>>({});
+  const [mandates, setMandates] = React.useState<Mandate[]>([]);
+  const [form, setForm] = React.useState({ id: '', project_id: '', agent: '' });
+  const [statusInputs, setStatusInputs] = React.useState<Record<number, string>>({});
+  const [history, setHistory] = React.useState<Record<number, { timestamp: string; status: string }[]>>({});
 
   React.useEffect(() => {
     if (auth) {
-      getStands(auth.token).then(setStands).catch(console.error);
+      listMandates(auth.token).then(setMandates).catch(console.error);
     }
   }, [auth]);
 
-  const filtered = stands.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
-
-  const assign = async (standId: number) => {
+  const submit = async () => {
     if (!auth) return;
-    const agent = inputs[standId];
-    if (!agent) return;
     try {
-      const stand = await assignMandate(auth.token, standId, agent);
-      setStands(stands.map(s => (s.id === standId ? stand : s)));
-      setInputs({ ...inputs, [standId]: '' });
+      const m = await createMandate(auth.token, {
+        id: Number(form.id),
+        project_id: Number(form.project_id),
+        agent: form.agent,
+        status: 'pending',
+      });
+      setMandates([...mandates, m]);
+      setForm({ id: '', project_id: '', agent: '' });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const update = async (id: number) => {
+    if (!auth) return;
+    const m = mandates.find(x => x.id === id);
+    const status = statusInputs[id];
+    if (!m || !status) return;
+    try {
+      const updated = await updateMandate(auth.token, id, { ...m, status });
+      setMandates(mandates.map(x => (x.id === id ? updated : x)));
+      setStatusInputs({ ...statusInputs, [id]: '' });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadHistory = async (id: number) => {
+    if (!auth) return;
+    try {
+      const h = await getMandateHistory(auth.token, id);
+      setHistory({ ...history, [id]: h });
     } catch (err) {
       console.error(err);
     }
@@ -38,29 +70,70 @@ const Mandates: React.FC = () => {
   return (
     <div>
       <h2>Mandates</h2>
-      <input placeholder="Search" value={search} onChange={e => setSearch(e.target.value)} />
+      <div>
+        <input
+          placeholder="ID"
+          value={form.id}
+          onChange={e => setForm({ ...form, id: e.target.value })}
+        />
+        <input
+          placeholder="Project ID"
+          value={form.project_id}
+          onChange={e => setForm({ ...form, project_id: e.target.value })}
+        />
+        <input
+          placeholder="Agent"
+          value={form.agent}
+          onChange={e => setForm({ ...form, agent: e.target.value })}
+        />
+        <button
+          onClick={submit}
+          disabled={!form.id || !form.project_id || !form.agent}
+        >
+          Create
+        </button>
+      </div>
       <table>
         <thead>
           <tr>
             <th>ID</th>
-            <th>Name</th>
-            <th>Mandate</th>
-            <th>Assign</th>
+            <th>Project</th>
+            <th>Agent</th>
+            <th>Status</th>
+            <th>Update</th>
+            <th>History</th>
           </tr>
         </thead>
         <tbody>
-          {filtered.map(s => (
-            <tr key={s.id}>
-              <td>{s.id}</td>
-              <td>{s.name}</td>
-              <td>{s.mandate ? `${s.mandate.agent} (${s.mandate.status})` : '-'}</td>
+          {mandates.map(m => (
+            <tr key={m.id}>
+              <td>{m.id}</td>
+              <td>{m.project_id}</td>
+              <td>{m.agent}</td>
+              <td>{m.status}</td>
               <td>
                 <input
-                  placeholder="Agent"
-                  value={inputs[s.id] || ''}
-                  onChange={e => setInputs({ ...inputs, [s.id]: e.target.value })}
+                  placeholder="Status"
+                  value={statusInputs[m.id] || ''}
+                  onChange={e =>
+                    setStatusInputs({ ...statusInputs, [m.id]: e.target.value })
+                  }
                 />
-                <button onClick={() => assign(s.id)} disabled={!inputs[s.id]}>Assign</button>
+                <button onClick={() => update(m.id)} disabled={!statusInputs[m.id]}>
+                  Update
+                </button>
+              </td>
+              <td>
+                <button onClick={() => loadHistory(m.id)}>Load</button>
+                {history[m.id] && (
+                  <ul>
+                    {history[m.id].map((h, i) => (
+                      <li key={i}>
+                        {new Date(h.timestamp).toLocaleString()} - {h.status}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </td>
             </tr>
           ))}

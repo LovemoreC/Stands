@@ -21,6 +21,8 @@ from .models import (
     Stand,
     PropertyStatus,
     Mandate,
+    MandateRecord,
+    MandateHistoryEntry,
     Agent,
     AgentCreate,
     AgentInDB,
@@ -322,6 +324,88 @@ def get_stand(
     if not stand:
         raise HTTPException(status_code=404, detail="Stand not found")
     return stand
+
+
+# Mandate endpoints
+
+
+@app.post("/mandates", response_model=MandateRecord)
+def create_mandate(
+    mandate: MandateRecord,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.mandates.get(mandate.id):
+        raise HTTPException(status_code=400, detail="Mandate exists")
+    if not repos.projects.get(mandate.project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not repos.agents.get(mandate.agent):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    repos.mandates.add(mandate)
+    repos.mandate_history.set(
+        mandate.id,
+        [
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": mandate.status.value,
+            }
+        ],
+    )
+    return mandate
+
+
+@app.put("/mandates/{mandate_id}", response_model=MandateRecord)
+def update_mandate(
+    mandate_id: int,
+    mandate: MandateRecord,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    existing = repos.mandates.get(mandate_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Mandate not found")
+    if mandate.id != mandate_id:
+        raise HTTPException(status_code=400, detail="Mandate ID mismatch")
+    if not repos.projects.get(mandate.project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not repos.agents.get(mandate.agent):
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if mandate.status != existing.status:
+        history = repos.mandate_history.get(mandate_id, [])
+        history.append(
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": mandate.status.value,
+            }
+        )
+        repos.mandate_history.set(mandate_id, history)
+    repos.mandates.add(mandate)
+    return mandate
+
+
+@app.get("/mandates", response_model=List[MandateRecord])
+def list_mandates(
+    _: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    return repos.mandates.list()
+
+
+@app.get("/mandates/{mandate_id}/history", response_model=List[MandateHistoryEntry])
+def get_mandate_history(
+    mandate_id: int,
+    _: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    if not repos.mandates.get(mandate_id):
+        raise HTTPException(status_code=404, detail="Mandate not found")
+    history = repos.mandate_history.get(mandate_id, [])
+    return [
+        MandateHistoryEntry(
+            timestamp=h["timestamp"], status=MandateStatus(h["status"])
+        )
+        for h in history
+    ]
 
 
 @app.post("/import/properties", response_model=ImportResult)

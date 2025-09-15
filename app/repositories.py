@@ -89,6 +89,7 @@ from .models import (
     AgentInDB,
     Project,
     Stand,
+    MandateRecord,
     Offer,
     PropertyApplication,
     AccountOpening,
@@ -102,6 +103,8 @@ class Repositories:
         self.agents = Repository(session, 'agents', AgentInDB)
         self.projects = Repository(session, 'projects', Project)
         self.stands = Repository(session, 'stands', Stand)
+        self.mandates = Repository(session, 'mandates', MandateRecord)
+        self.mandate_history = SimpleRepository(session, 'mandate_history')
         self.offers = Repository(session, 'offers', Offer)
         self.applications = Repository(session, 'applications', PropertyApplication)
         self.account_openings = Repository(session, 'account_openings', AccountOpening)

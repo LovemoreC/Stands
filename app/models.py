@@ -32,6 +32,20 @@ class Mandate(BaseModel):
     expiration_date: Optional[datetime] = None
 
 
+class MandateRecord(Mandate):
+    """Persistent mandate linking an agent to a project."""
+
+    id: int
+    project_id: int
+
+
+class MandateHistoryEntry(BaseModel):
+    """Represents a status change in a mandate's lifecycle."""
+
+    timestamp: datetime
+    status: MandateStatus
+
+
 class Stand(BaseModel):
     id: int
     project_id: int

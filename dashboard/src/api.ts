@@ -81,6 +81,45 @@ export async function assignMandate(token: string, standId: number, agent: strin
   return res.json();
 }
 
+export async function listMandates(token: string) {
+  const res = await fetch('/mandates', { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load mandates');
+  return res.json();
+}
+
+export async function createMandate(
+  token: string,
+  mandate: { id: number; project_id: number; agent: string; status?: string },
+) {
+  const res = await fetch('/mandates', {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(mandate),
+  });
+  if (!res.ok) throw new Error('Failed to create mandate');
+  return res.json();
+}
+
+export async function updateMandate(
+  token: string,
+  id: number,
+  mandate: { id: number; project_id: number; agent: string; status: string },
+) {
+  const res = await fetch(`/mandates/${id}`, {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify(mandate),
+  });
+  if (!res.ok) throw new Error('Failed to update mandate');
+  return res.json();
+}
+
+export async function getMandateHistory(token: string, id: number) {
+  const res = await fetch(`/mandates/${id}/history`, { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load mandate history');
+  return res.json();
+}
+
 export async function submitOffer(
   token: string,
   offer: { id: number; realtor: string; property_id: number; details?: string; file?: File }
