@@ -87,14 +87,14 @@ def test_report_filtering():
     assert data[0]["status"] == "sold"
 
 
-def test_deposit_and_loan_reports():
+def test_mandate_and_loan_reports():
     admin_headers = setup_data()
-    resp = client.get("/reports/deposits", headers=admin_headers)
+    resp = client.get("/reports/mandates", headers=admin_headers)
     assert resp.status_code == 200
     data = list(csv.DictReader(resp.text.splitlines()))
-    assert float(data[0]["total_deposits"]) == 100
+    assert data[0]["status"] == "accepted"
 
-    resp = client.get("/reports/loans", headers=admin_headers)
+    resp = client.get("/reports/loans?status=completed", headers=admin_headers)
     assert resp.status_code == 200
     data = list(csv.DictReader(resp.text.splitlines()))
     assert data[0]["decision"] == "approved"
