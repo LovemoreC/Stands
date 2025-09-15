@@ -10,10 +10,17 @@ basic status tracking and notification storage.
 pip install -r requirements.txt
 ```
 
+Create a `.env` file based on `.env.example` and set a strong value for `SECRET_KEY`.
+
+```bash
+cp .env.example .env
+# edit .env and provide a SECRET_KEY
+```
+
 ## Running
 
 ```
-uvicorn app.main:app --reload
+SECRET_KEY=your-secret-key uvicorn app.main:app --reload
 ```
 
 Interactive docs will be available at `http://127.0.0.1:8000/docs`.
@@ -50,6 +57,7 @@ docker compose up --build
 ```
 
 This builds the image from the included `Dockerfile`, starts the `web` service on port 8000, and persists the SQLite database using a named volume (`sqlite_data`) mounted at `/app/data`. The environment variable `DATABASE_URL=sqlite:///data/app.db` is provided to the container.
+The `SECRET_KEY` used for JWT signing is also read from the environment.
 
 ## Authentication
 

@@ -5,6 +5,7 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: "sqlite:///data/app.db"
+      SECRET_KEY: "${SECRET_KEY}"
     volumes:
       - sqlite_data:/app/data
 volumes:
