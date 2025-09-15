@@ -21,20 +21,21 @@ def test_auth_mandate_and_available_view():
         "/agents", json={"username": "admin", "role": "admin", "password": "a"}
     )
     assert resp.status_code == 200
+    admin_token = client.post(
+        "/auth/login", json={"username": "admin", "password": "a"}
+    ).json()["token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
     resp = client.post(
-        "/agents", json={"username": "agentA", "role": "agent", "password": "b"}
+        "/agents",
+        json={"username": "agentA", "role": "agent", "password": "b"},
+        headers=admin_headers,
     )
     assert resp.status_code == 200
-
-    admin_token = client.post(
-        "/login", json={"username": "admin", "password": "a"}
-    ).json()["token"]
     agent_token = client.post(
-        "/login", json={"username": "agentA", "password": "b"}
+        "/auth/login", json={"username": "agentA", "password": "b"}
     ).json()["token"]
 
-    admin_headers = {"X-Token": admin_token}
-    agent_headers = {"X-Token": agent_token}
+    agent_headers = {"Authorization": f"Bearer {agent_token}"}
 
     # Create project as admin
     project = {"id": 1, "name": "Project A"}

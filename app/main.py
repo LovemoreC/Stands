@@ -1,14 +1,14 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File, Form, Response
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
-from datetime import datetime
-import secrets
+from datetime import datetime, timedelta
 import hashlib
 import hmac
 import csv
 import base64
 import uuid
 from io import BytesIO
+import jwt
 from pydantic import BaseModel
 from openpyxl import load_workbook, Workbook
 from .database import init_db, get_session, SessionLocal
@@ -54,6 +54,8 @@ from .models import (
     UploadedFile,
 )
 
+SECRET_KEY = "changeme"
+
 app = FastAPI(title="Property Management API")
 init_db()
 
@@ -75,19 +77,35 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed: str) -> bool:
     return hmac.compare_digest(hash_password(password), hashed)
 
-
-def hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(hours=1))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
 
 
 def get_current_agent(
-    x_token: str = Header(...), repos: Repositories = Depends(get_repositories)
+    authorization: str = Header(...), repos: Repositories = Depends(get_repositories)
 ) -> Agent:
-    username = repos.tokens.get(hash_token(x_token))
-    if not username:
+    if not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    username = payload.get("sub")
+    role = payload.get("role")
+    if not username or not role:
         raise HTTPException(status_code=401, detail="Invalid authentication token")
     agent_in_db = repos.agents.get(username)
     if not agent_in_db:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    try:
+        token_role = AgentRole(role)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
+    if agent_in_db.role != token_role:
         raise HTTPException(status_code=401, detail="Invalid authentication token")
     return Agent(username=agent_in_db.username, role=agent_in_db.role)
 
@@ -106,14 +124,17 @@ def require_compliance(agent: Agent = Depends(get_current_agent)) -> Agent:
 
 @app.middleware("http")
 async def log_request(request: Request, call_next):
-    token = request.headers.get("x-token")
+    auth = request.headers.get("authorization")
+    username = "anonymous"
+    if auth and auth.lower().startswith("bearer "):
+        token = auth.split(" ", 1)[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            username = payload.get("sub", "anonymous")
+        except jwt.PyJWTError:
+            pass
     session = SessionLocal()
     repos = Repositories(session)
-    username = "anonymous"
-    if token:
-        uname = repos.tokens.get(hash_token(token))
-        if uname:
-            username = uname
     timestamp = datetime.utcnow().isoformat()
     response = await call_next(request)
     repos.audit_log.append(
@@ -124,7 +145,17 @@ async def log_request(request: Request, call_next):
 
 
 @app.post("/agents", response_model=Agent)
-def create_agent(agent: AgentCreate, repos: Repositories = Depends(get_repositories)):
+def create_agent(
+    agent: AgentCreate,
+    authorization: str = Header(None),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.agents.list():
+        if not authorization:
+            raise HTTPException(status_code=401, detail="Missing authentication token")
+        current = get_current_agent(authorization=authorization, repos=repos)
+        if current.role != AgentRole.ADMIN:
+            raise HTTPException(status_code=403, detail="Admin privileges required")
     if repos.agents.get(agent.username):
         raise HTTPException(status_code=400, detail="Agent exists")
     if agent.role not in AgentRole:
@@ -151,14 +182,12 @@ class AuditEntry(BaseModel):
     action: str
     status: int
 
-
-@app.post("/login")
+@app.post("/auth/login")
 def login(data: LoginRequest, repos: Repositories = Depends(get_repositories)):
     agent = repos.agents.get(data.username)
     if not agent or not verify_password(data.password, agent.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    token = secrets.token_hex(16)
-    repos.tokens.set(hash_token(token), agent.username)
+    token = create_access_token({"sub": agent.username, "role": agent.role.value})
     return {"token": token, "role": agent.role, "username": agent.username}
 
 

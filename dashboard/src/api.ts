@@ -1,6 +1,6 @@
 export const headers = (token: string) => ({
   'Content-Type': 'application/json',
-  'X-Token': token,
+  Authorization: `Bearer ${token}`,
 });
 
 export async function getDashboard(token: string) {
@@ -133,7 +133,7 @@ export async function submitOffer(
     if (offer.details) form.append('details', offer.details);
     form.append('file', offer.file);
     opts.body = form;
-    opts.headers = { 'X-Token': token };
+    opts.headers = { Authorization: `Bearer ${token}` };
   } else {
     opts.body = JSON.stringify(offer);
     opts.headers = headers(token);
@@ -155,7 +155,7 @@ export async function submitAccountOpening(
     if (req.details) form.append('details', req.details);
     form.append('file', req.file);
     opts.body = form;
-    opts.headers = { 'X-Token': token };
+    opts.headers = { Authorization: `Bearer ${token}` };
   } else {
     opts.body = JSON.stringify(req);
     opts.headers = headers(token);
@@ -178,7 +178,7 @@ export async function submitPropertyApplication(
     if (app.details) form.append('details', app.details);
     form.append('file', app.file);
     opts.body = form;
-    opts.headers = { 'X-Token': token };
+    opts.headers = { Authorization: `Bearer ${token}` };
   } else {
     opts.body = JSON.stringify(app);
     opts.headers = headers(token);

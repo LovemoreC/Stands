@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { authHeaders } from './auth';
 
 export interface Mandate {
   id: number;
@@ -15,48 +16,47 @@ export interface MandateHistoryEntry {
   status: string;
 }
 
-const jsonHeaders = (token: string) => ({
+const jsonHeaders = () => ({
   'Content-Type': 'application/json',
-  'X-Token': token,
+  ...authHeaders(),
 });
 
-export async function listMandates(token: string): Promise<Mandate[]> {
-  const res = await fetch('/mandates', { headers: jsonHeaders(token) });
+export async function listMandates(): Promise<Mandate[]> {
+  const res = await fetch('/mandates', { headers: jsonHeaders() });
   if (!res.ok) throw new Error('Failed to load mandates');
   return res.json();
 }
 
-export async function createMandate(token: string, mandate: Mandate): Promise<Mandate> {
+export async function createMandate(mandate: Mandate): Promise<Mandate> {
   const res = await fetch('/mandates', {
     method: 'POST',
-    headers: jsonHeaders(token),
+    headers: jsonHeaders(),
     body: JSON.stringify(mandate),
   });
   if (!res.ok) throw new Error('Failed to create mandate');
   return res.json();
 }
 
-export async function updateMandate(token: string, id: number, mandate: Mandate): Promise<Mandate> {
+export async function updateMandate(id: number, mandate: Mandate): Promise<Mandate> {
   const res = await fetch(`/mandates/${id}`, {
     method: 'PUT',
-    headers: jsonHeaders(token),
+    headers: jsonHeaders(),
     body: JSON.stringify(mandate),
   });
   if (!res.ok) throw new Error('Failed to update mandate');
   return res.json();
 }
 
-export async function getMandateHistory(token: string, id: number): Promise<MandateHistoryEntry[]> {
-  const res = await fetch(`/mandates/${id}/history`, { headers: jsonHeaders(token) });
+export async function getMandateHistory(id: number): Promise<MandateHistoryEntry[]> {
+  const res = await fetch(`/mandates/${id}/history`, { headers: jsonHeaders() });
   if (!res.ok) throw new Error('Failed to load mandate history');
   return res.json();
 }
 
-export function useMandates(token: string | undefined) {
+export function useMandates() {
   const [mandates, setMandates] = useState<Mandate[]>([]);
   useEffect(() => {
-    if (!token) return;
-    listMandates(token).then(setMandates).catch(console.error);
-  }, [token]);
+    listMandates().then(setMandates).catch(console.error);
+  }, []);
   return { mandates, setMandates };
 }

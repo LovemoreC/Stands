@@ -19,9 +19,9 @@ def auth_headers(username: str):
         json={"username": username, "role": "admin", "password": username},
     )
     token = client.post(
-        "/login", json={"username": username, "password": username}
+        "/auth/login", json={"username": username, "password": username}
     ).json()["token"]
-    return {"X-Token": token}
+    return {"Authorization": f"Bearer {token}"}
 
 
 def test_project_and_stand_crud():

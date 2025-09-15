@@ -10,15 +10,24 @@ def setup_function(_):
 
 def register_users():
     client.post("/agents", json={"username": "admin", "role": "admin", "password": "admin"})
-    admin_token = client.post("/login", json={"username": "admin", "password": "admin"}).json()["token"]
-    client.post("/agents", json={"username": "agent", "role": "agent", "password": "agent"})
-    agent_token = client.post("/login", json={"username": "agent", "password": "agent"}).json()["token"]
+    admin_token = client.post(
+        "/auth/login", json={"username": "admin", "password": "admin"}
+    ).json()["token"]
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    client.post(
+        "/agents",
+        json={"username": "agent", "role": "agent", "password": "agent"},
+        headers=headers,
+    )
+    agent_token = client.post(
+        "/auth/login", json={"username": "agent", "password": "agent"}
+    ).json()["token"]
     return {"admin": admin_token, "agent": agent_token}
 
 def test_deposit_workflow():
     tokens = register_users()
-    admin_headers = {"X-Token": tokens["admin"]}
-    agent_headers = {"X-Token": tokens["agent"]}
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    agent_headers = {"Authorization": f"Bearer {tokens['agent']}"}
 
     # Agent submits account opening
     client.post("/account-openings", json={"id": 1, "realtor": "agent"}, headers=agent_headers)

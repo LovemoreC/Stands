@@ -8,10 +8,8 @@ import {
 type Status = 'idle' | 'uploading' | 'success' | 'error';
 
 export function OfferApplicationForm({
-  token,
   realtor,
 }: {
-  token: string;
   realtor: string;
 }) {
   const [id, setId] = useState('');
@@ -24,7 +22,7 @@ export function OfferApplicationForm({
     if (!file) return;
     setStatus('uploading');
     try {
-      await submitOfferApplication(token, {
+      await submitOfferApplication({
         id: Number(id),
         realtor,
         property_id: Number(propertyId),
@@ -54,10 +52,8 @@ export function OfferApplicationForm({
 }
 
 export function PropertyApplicationForm({
-  token,
   realtor,
 }: {
-  token: string;
   realtor: string;
 }) {
   const [id, setId] = useState('');
@@ -70,7 +66,7 @@ export function PropertyApplicationForm({
     if (!file) return;
     setStatus('uploading');
     try {
-      await submitPropertyApplication(token, {
+      await submitPropertyApplication({
         id: Number(id),
         realtor,
         property_id: Number(propertyId),
@@ -100,10 +96,8 @@ export function PropertyApplicationForm({
 }
 
 export function AccountApplicationForm({
-  token,
   realtor,
 }: {
-  token: string;
   realtor: string;
 }) {
   const [id, setId] = useState('');
@@ -115,7 +109,7 @@ export function AccountApplicationForm({
     if (!file) return;
     setStatus('uploading');
     try {
-      await submitAccountApplication(token, {
+      await submitAccountApplication({
         id: Number(id),
         realtor,
         file,

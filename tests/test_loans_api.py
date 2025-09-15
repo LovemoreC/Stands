@@ -15,22 +15,25 @@ def setup_agents():
     client.post(
         "/agents", json={"username": "admin", "role": "admin", "password": "a"}
     )
-    client.post(
-        "/agents", json={"username": "user", "role": "agent", "password": "b"}
-    )
     admin_token = client.post(
-        "/login", json={"username": "admin", "password": "a"}
+        "/auth/login", json={"username": "admin", "password": "a"}
     ).json()["token"]
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    client.post(
+        "/agents",
+        json={"username": "user", "role": "agent", "password": "b"},
+        headers=headers,
+    )
     user_token = client.post(
-        "/login", json={"username": "user", "password": "b"}
+        "/auth/login", json={"username": "user", "password": "b"}
     ).json()["token"]
     return {"admin": admin_token, "user": user_token}
 
 
 def test_loan_flow():
     tokens = setup_agents()
-    admin_headers = {"X-Token": tokens["admin"]}
-    user_headers = {"X-Token": tokens["user"]}
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    user_headers = {"Authorization": f"Bearer {tokens['user']}"}
 
     loan = {"id": 1, "borrower": "user", "amount": 1000}
     resp = client.post("/loans", json=loan, headers=user_headers)
