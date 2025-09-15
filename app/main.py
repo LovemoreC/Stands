@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File, Response
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File, Form, Response
 from typing import List, Optional
 from datetime import datetime
 import secrets
 import hashlib
 import hmac
 import csv
+import base64
 from io import BytesIO
 from pydantic import BaseModel
 from openpyxl import load_workbook, Workbook
@@ -42,6 +43,7 @@ from .models import (
     AgreementCreate,
     AgreementUpload,
     AgreementExecution,
+    UploadedFile,
 )
 
 app = FastAPI(title="Property Management API")
@@ -551,6 +553,104 @@ def loans_report(
 def _ensure_owner(obj_realtor: str, agent: Agent):
     if agent.role != AgentRole.ADMIN and obj_realtor != agent.username:
         raise HTTPException(status_code=403, detail="Not authorized")
+
+
+@app.post("/applications/offer", response_model=Offer)
+def upload_offer_application(
+    id: int = Form(...),
+    realtor: str = Form(...),
+    property_id: int = Form(...),
+    details: Optional[str] = Form(None),
+    file: UploadFile = File(...),
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.offers.get(id):
+        raise HTTPException(status_code=400, detail="Offer ID exists")
+    if agent.username != realtor:
+        raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    filename = file.filename or ""
+    if not (filename.endswith(".pdf") or filename.endswith(".csv")):
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    encoded = base64.b64encode(file.file.read()).decode("utf-8")
+    document = UploadedFile(
+        filename=filename, content_type=file.content_type, content=encoded
+    )
+    offer = Offer(
+        id=id,
+        realtor=realtor,
+        property_id=property_id,
+        details=details,
+        document=document,
+    )
+    repos.offers.add(offer)
+    repos.notifications.append(f"Offer {id} submitted by {realtor}")
+    return offer
+
+
+@app.post("/applications/property", response_model=PropertyApplication)
+def upload_property_application(
+    id: int = Form(...),
+    realtor: str = Form(...),
+    property_id: int = Form(...),
+    details: Optional[str] = Form(None),
+    file: UploadFile = File(...),
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.applications.get(id):
+        raise HTTPException(status_code=400, detail="Application ID exists")
+    if agent.username != realtor:
+        raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    filename = file.filename or ""
+    if not (filename.endswith(".pdf") or filename.endswith(".csv")):
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    encoded = base64.b64encode(file.file.read()).decode("utf-8")
+    document = UploadedFile(
+        filename=filename, content_type=file.content_type, content=encoded
+    )
+    application = PropertyApplication(
+        id=id,
+        realtor=realtor,
+        property_id=property_id,
+        details=details,
+        document=document,
+    )
+    repos.applications.add(application)
+    repos.notifications.append(
+        f"Property application {id} submitted by {realtor}"
+    )
+    return application
+
+
+@app.post("/applications/account", response_model=AccountOpening)
+def upload_account_opening(
+    id: int = Form(...),
+    realtor: str = Form(...),
+    details: Optional[str] = Form(None),
+    file: UploadFile = File(...),
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.account_openings.get(id):
+        raise HTTPException(status_code=400, detail="Request ID exists")
+    if agent.username != realtor:
+        raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    filename = file.filename or ""
+    if not (filename.endswith(".pdf") or filename.endswith(".csv")):
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    encoded = base64.b64encode(file.file.read()).decode("utf-8")
+    document = UploadedFile(
+        filename=filename, content_type=file.content_type, content=encoded
+    )
+    request = AccountOpening(
+        id=id, realtor=realtor, details=details, document=document
+    )
+    repos.account_openings.add(request)
+    repos.notifications.append(
+        f"Account opening {id} submitted by {realtor}"
+    )
+    return request
 
 
 @app.post("/offers", response_model=Offer)
