@@ -4,10 +4,9 @@ export interface UploadedFile {
   content: string;
 }
 
-const authHeaders = (token: string) => ({ 'X-Token': token });
+import { authHeaders } from './auth';
 
 export async function submitOfferApplication(
-  token: string,
   params: {
     id: number;
     realtor: string;
@@ -24,7 +23,7 @@ export async function submitOfferApplication(
   form.append('file', params.file);
   const res = await fetch('/applications/offer', {
     method: 'POST',
-    headers: authHeaders(token),
+    headers: authHeaders(),
     body: form,
   });
   if (!res.ok) throw new Error('Failed to submit offer application');
@@ -32,7 +31,6 @@ export async function submitOfferApplication(
 }
 
 export async function submitPropertyApplication(
-  token: string,
   params: {
     id: number;
     realtor: string;
@@ -49,7 +47,7 @@ export async function submitPropertyApplication(
   form.append('file', params.file);
   const res = await fetch('/applications/property', {
     method: 'POST',
-    headers: authHeaders(token),
+    headers: authHeaders(),
     body: form,
   });
   if (!res.ok) throw new Error('Failed to submit property application');
@@ -57,7 +55,6 @@ export async function submitPropertyApplication(
 }
 
 export async function submitAccountApplication(
-  token: string,
   params: { id: number; realtor: string; details?: string; file: File },
 ) {
   const form = new FormData();
@@ -67,7 +64,7 @@ export async function submitAccountApplication(
   form.append('file', params.file);
   const res = await fetch('/applications/account', {
     method: 'POST',
-    headers: authHeaders(token),
+    headers: authHeaders(),
     body: form,
   });
   if (!res.ok) throw new Error('Failed to submit account application');

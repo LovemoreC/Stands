@@ -15,22 +15,25 @@ def setup_agents():
     client.post(
         "/agents", json={"username": "admin", "role": "admin", "password": "a"}
     )
-    client.post(
-        "/agents", json={"username": "realtor", "role": "agent", "password": "b"}
-    )
     admin_token = client.post(
-        "/login", json={"username": "admin", "password": "a"}
+        "/auth/login", json={"username": "admin", "password": "a"}
     ).json()["token"]
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    client.post(
+        "/agents",
+        json={"username": "realtor", "role": "agent", "password": "b"},
+        headers=headers,
+    )
     realtor_token = client.post(
-        "/login", json={"username": "realtor", "password": "b"}
+        "/auth/login", json={"username": "realtor", "password": "b"}
     ).json()["token"]
     return {"admin": admin_token, "realtor": realtor_token}
 
 
 def test_submissions_and_status_updates():
     tokens = setup_agents()
-    admin_headers = {"X-Token": tokens["admin"]}
-    realtor_headers = {"X-Token": tokens["realtor"]}
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
     # Submit offer
     offer = {"id": 1, "realtor": "realtor", "property_id": 1}
@@ -80,8 +83,8 @@ def test_submissions_and_status_updates():
 
 def test_account_opening_deposit_tracking():
     tokens = setup_agents()
-    admin_headers = {"X-Token": tokens["admin"]}
-    realtor_headers = {"X-Token": tokens["realtor"]}
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
     account = {"id": 2, "realtor": "realtor"}
     resp = client.post("/account-openings", json=account, headers=realtor_headers)
@@ -115,8 +118,8 @@ def test_account_opening_deposit_tracking():
 
 def test_loan_application_flow():
     tokens = setup_agents()
-    admin_headers = {"X-Token": tokens["admin"]}
-    realtor_headers = {"X-Token": tokens["realtor"]}
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
     account = {"id": 3, "realtor": "realtor"}
     resp = client.post("/account-openings", json=account, headers=realtor_headers)
@@ -196,8 +199,8 @@ def test_loan_application_flow():
 
 def test_account_opening_queue_listing():
     tokens = setup_agents()
-    admin_headers = {"X-Token": tokens["admin"]}
-    realtor_headers = {"X-Token": tokens["realtor"]}
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
     client.post(
         "/account-openings",
@@ -233,8 +236,8 @@ def test_account_opening_queue_listing():
 
 def test_loan_application_queue_listing_and_agreement_generation():
     tokens = setup_agents()
-    admin_headers = {"X-Token": tokens["admin"]}
-    realtor_headers = {"X-Token": tokens["realtor"]}
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
     client.post("/projects", json={"id": 1, "name": "P"}, headers=admin_headers)
     client.post(

@@ -15,10 +15,10 @@ def setup_function():
         "/agents", json={"username": "admin", "role": "admin", "password": "a"}
     )
     token = client.post(
-        "/login", json={"username": "admin", "password": "a"}
+        "/auth/login", json={"username": "admin", "password": "a"}
     ).json()["token"]
     global admin_headers
-    admin_headers = {"X-Token": token}
+    admin_headers = {"Authorization": f"Bearer {token}"}
 
 
 def test_import_csv_with_errors():

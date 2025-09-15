@@ -59,11 +59,11 @@ Agents are created with a password hash:
 POST /agents {"username": "alice", "role": "admin", "password": "secret"}
 ```
 
-Log in to receive an API token and use it in the `X-Token` header:
+Log in to receive a JWT and use it in the `Authorization` header:
 
 ```
-POST /login {"username": "alice", "password": "secret"}
-X-Token: <token from login>
+POST /auth/login {"username": "alice", "password": "secret"}
+Authorization: Bearer <token from login>
 ```
 
 ## Reports
@@ -72,7 +72,7 @@ Download a CSV report of all properties and mandate statuses. Optionally filter 
 property status using the `status` query parameter:
 
 ```bash
-curl -H "X-Token: <token>" -o properties.csv \
+curl -H "Authorization: Bearer <token>" -o properties.csv \
   "http://127.0.0.1:8000/reports/properties?status=available"
 ```
 

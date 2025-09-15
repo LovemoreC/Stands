@@ -17,11 +17,15 @@ def setup_function():
 
 def setup_data():
     client.post("/agents", json={"username": "admin", "role": "admin", "password": "a"})
-    client.post("/agents", json={"username": "agent", "role": "agent", "password": "b"})
-    admin_token = client.post("/login", json={"username": "admin", "password": "a"}).json()["token"]
-    agent_token = client.post("/login", json={"username": "agent", "password": "b"}).json()["token"]
-    admin_headers = {"X-Token": admin_token}
-    agent_headers = {"X-Token": agent_token}
+    admin_token = client.post("/auth/login", json={"username": "admin", "password": "a"}).json()["token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    client.post(
+        "/agents",
+        json={"username": "agent", "role": "agent", "password": "b"},
+        headers=admin_headers,
+    )
+    agent_token = client.post("/auth/login", json={"username": "agent", "password": "b"}).json()["token"]
+    agent_headers = {"Authorization": f"Bearer {agent_token}"}
     client.post("/projects", json={"id": 1, "name": "Proj"}, headers=admin_headers)
     client.post(
         "/stands",

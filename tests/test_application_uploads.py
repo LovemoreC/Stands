@@ -14,21 +14,24 @@ def setup_agents():
     client.post(
         "/agents", json={"username": "admin", "role": "admin", "password": "a"}
     )
-    client.post(
-        "/agents", json={"username": "realtor", "role": "agent", "password": "b"}
-    )
     admin_token = client.post(
-        "/login", json={"username": "admin", "password": "a"}
+        "/auth/login", json={"username": "admin", "password": "a"}
     ).json()["token"]
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    client.post(
+        "/agents",
+        json={"username": "realtor", "role": "agent", "password": "b"},
+        headers=headers,
+    )
     realtor_token = client.post(
-        "/login", json={"username": "realtor", "password": "b"}
+        "/auth/login", json={"username": "realtor", "password": "b"}
     ).json()["token"]
     return {"admin": admin_token, "realtor": realtor_token}
 
 
 def test_upload_applications():
     tokens = setup_agents()
-    realtor_headers = {"X-Token": tokens["realtor"]}
+    realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
     files = {"file": ("offer.pdf", b"data", "application/pdf")}
     data = {"id": "1", "realtor": "realtor", "property_id": "1"}

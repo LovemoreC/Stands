@@ -11,18 +11,20 @@ client = TestClient(app)
 
 def setup_data():
     reset_state()
-    def create_and_login(username, role):
+    def create_and_login(username, role, headers=None):
         client.post(
-            "/agents", json={"username": username, "role": role, "password": username}
+            "/agents",
+            json={"username": username, "role": role, "password": username},
+            headers=headers,
         )
         token = client.post(
-            "/login", json={"username": username, "password": username}
+            "/auth/login", json={"username": username, "password": username}
         ).json()["token"]
-        return {"X-Token": token}
+        return {"Authorization": f"Bearer {token}"}
 
     admin_headers = create_and_login("admin", "admin")
-    realtor_headers = create_and_login("realtor", "agent")
-    intruder_headers = create_and_login("intruder", "agent")
+    realtor_headers = create_and_login("realtor", "agent", admin_headers)
+    intruder_headers = create_and_login("intruder", "agent", admin_headers)
 
     client.post("/projects", json={"id": 1, "name": "Proj"}, headers=admin_headers)
     client.post(

@@ -21,12 +21,23 @@ def register_agents():
         "agentA": "agent",
     }
     tokens = {}
-    for user, role in creds.items():
+    # create first admin
+    client.post(
+        "/agents", json={"username": "admin", "role": "admin", "password": "admin"}
+    )
+    admin_token = client.post(
+        "/auth/login", json={"username": "admin", "password": "admin"}
+    ).json()["token"]
+    tokens["admin"] = admin_token
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    for user, role in list(creds.items())[1:]:
         client.post(
-            "/agents", json={"username": user, "role": role, "password": user}
+            "/agents",
+            json={"username": user, "role": role, "password": user},
+            headers=admin_headers,
         )
         token = client.post(
-            "/login", json={"username": user, "password": user}
+            "/auth/login", json={"username": user, "password": user}
         ).json()["token"]
         tokens[user] = token
     return tokens
@@ -78,10 +89,10 @@ def setup_data(admin_headers, agent_headers):
 def test_dashboards_and_audit_log():
     reset_state()
     tokens = register_agents()
-    admin_headers = {"X-Token": tokens["admin"]}
-    manager_headers = {"X-Token": tokens["manager"]}
-    compliance_headers = {"X-Token": tokens["compliance"]}
-    agent_headers = {"X-Token": tokens["agentA"]}
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    manager_headers = {"Authorization": f"Bearer {tokens['manager']}"}
+    compliance_headers = {"Authorization": f"Bearer {tokens['compliance']}"}
+    agent_headers = {"Authorization": f"Bearer {tokens['agentA']}"}
 
     setup_data(admin_headers, agent_headers)
 
