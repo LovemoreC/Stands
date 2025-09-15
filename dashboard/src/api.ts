@@ -280,12 +280,26 @@ export async function generateAgreement(
   token: string,
   data: { id: number; loan_application_id: number; property_id: number }
 ) {
-  const res = await fetch('/agreements/generate', {
+  const res = await fetch('/agreements', {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error('Failed to generate agreement');
+  return res.json();
+}
+
+export async function signAgreement(
+  token: string,
+  id: number,
+  documentUrl: string,
+) {
+  const res = await fetch(`/agreements/${id}/sign`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({ document_url: documentUrl }),
+  });
+  if (!res.ok) throw new Error('Failed to sign agreement');
   return res.json();
 }
 

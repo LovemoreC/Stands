@@ -63,27 +63,45 @@ def test_agreement_flow():
     admin_headers, realtor_headers, intruder_headers = setup_data()
 
     resp = client.post(
-        "/agreements/generate",
+        "/agreements",
         json={"id": 1, "loan_application_id": 1, "property_id": 1},
         headers=admin_headers,
     )
     assert resp.status_code == 200
-    assert "Stand1" in resp.json()["document"]
+    data = resp.json()
+    assert "Stand1" in data["document"]
+    assert data["status"] == "draft"
 
     resp = client.get("/agreements/1/document", headers=admin_headers)
     assert resp.status_code == 200
     assert "Stand1" in resp.text
 
-    resp = client.put("/agreements/1/sign", headers=intruder_headers)
+    resp = client.post(
+        "/agreements/1/sign",
+        json={"document_url": "url_intruder"},
+        headers=intruder_headers,
+    )
     assert resp.status_code == 403
 
-    resp = client.put("/agreements/1/sign", headers=realtor_headers)
+    resp = client.post(
+        "/agreements/1/sign",
+        json={"document_url": "url_customer"},
+        headers=realtor_headers,
+    )
     assert resp.status_code == 200
-    assert resp.json()["customer_signature"] is not None
+    data = resp.json()
+    assert data["customer_document_url"] == "url_customer"
+    assert data["status"] == "partially_signed"
 
-    resp = client.put("/agreements/1/sign", headers=admin_headers)
+    resp = client.post(
+        "/agreements/1/sign",
+        json={"document_url": "url_bank"},
+        headers=admin_headers,
+    )
     assert resp.status_code == 200
-    assert resp.json()["bank_signature"] is not None
+    data = resp.json()
+    assert data["bank_document_url"] == "url_bank"
+    assert data["status"] == "signed"
 
     notes_resp = client.get("/notifications", headers=admin_headers)
     assert any("Loan Accounts Opening Team" in n for n in notes_resp.json())
