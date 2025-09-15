@@ -8,6 +8,7 @@ import hmac
 import csv
 import base64
 import uuid
+import os
 from io import BytesIO
 import jwt
 from pydantic import BaseModel
@@ -55,7 +56,7 @@ from .models import (
     UploadedFile,
 )
 
-SECRET_KEY = "changeme"
+SECRET_KEY = os.environ["SECRET_KEY"]
 
 app = FastAPI(title="Property Management API")
 
