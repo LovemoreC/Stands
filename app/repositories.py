@@ -95,6 +95,7 @@ from .models import (
     AccountOpening,
     LoanApplication,
     Agreement,
+    Loan,
 )
 
 
@@ -109,6 +110,7 @@ class Repositories:
         self.applications = Repository(session, 'applications', PropertyApplication)
         self.account_openings = Repository(session, 'account_openings', AccountOpening)
         self.loan_applications = Repository(session, 'loan_applications', LoanApplication)
+        self.loans = Repository(session, 'loans', Loan)
         self.notifications = ListRepository(session, 'notifications')
         self.agreements = Repository(session, 'agreements', Agreement)
         self.customer_loan_accounts = SimpleRepository(session, 'customer_loan_accounts')
