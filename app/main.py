@@ -46,6 +46,8 @@ from .models import (
     AgreementCreate,
     AgreementUpload,
     AgreementExecution,
+    AgreementSign,
+    AgreementStatus,
     UploadedFile,
 )
 
@@ -972,6 +974,7 @@ def decide_loan_application(
                     document=content,
                     versions=[content],
                     audit_log=[f"{timestamp}: generated"],
+                    status=AgreementStatus.DRAFT,
                 )
                 repos.agreements.add(agreement)
     else:
@@ -1122,8 +1125,8 @@ def get_audit_log(
 # ---- Agreement endpoints ----
 
 
-@app.post("/agreements/generate", response_model=Agreement)
-def generate_agreement(
+@app.post("/agreements", response_model=Agreement)
+def create_agreement(
     data: AgreementCreate,
     _: Agent = Depends(require_admin),
     repos: Repositories = Depends(get_repositories),
@@ -1146,6 +1149,7 @@ def generate_agreement(
         document=content,
         versions=[content],
         audit_log=[f"{timestamp}: generated"],
+        status=AgreementStatus.DRAFT,
     )
     repos.agreements.add(agreement)
     return agreement
@@ -1175,9 +1179,10 @@ def view_agreement_document(
     return Response(content=agreement.document, media_type="text/plain")
 
 
-@app.put("/agreements/{agreement_id}/sign", response_model=Agreement)
+@app.post("/agreements/{agreement_id}/sign", response_model=Agreement)
 def sign_agreement(
     agreement_id: int,
+    payload: AgreementSign,
     agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
@@ -1186,25 +1191,29 @@ def sign_agreement(
         raise HTTPException(status_code=404, detail="Agreement not found")
     timestamp = datetime.utcnow().isoformat()
     if agent.role == AgentRole.ADMIN:
-        agreement.bank_signature = f"signed by {agent.username} at {timestamp}"
+        agreement.bank_document_url = payload.document_url
         agreement.audit_log.append(
             f"{timestamp}: bank signed by {agent.username}"
         )
     else:
         if agent.username != agreement.realtor:
             raise HTTPException(status_code=403, detail="Agent not authorized to sign")
-        agreement.customer_signature = f"signed by {agent.username} at {timestamp}"
+        agreement.customer_document_url = payload.document_url
         agreement.audit_log.append(
             f"{timestamp}: customer signed by {agent.username}"
         )
-    repos.agreements.add(agreement)
 
-    if agreement.bank_signature and agreement.customer_signature:
+    if agreement.bank_document_url and agreement.customer_document_url:
+        agreement.status = AgreementStatus.SIGNED
         message = (
             f"Agreement {agreement_id} fully signed; notify Loan Accounts Opening Team"
         )
         if message not in repos.notifications.list():
             repos.notifications.append(message)
+    else:
+        agreement.status = AgreementStatus.PARTIALLY_SIGNED
+
+    repos.agreements.add(agreement)
 
     return agreement
 
@@ -1238,7 +1247,7 @@ def execute_agreement(
     agreement = repos.agreements.get(agreement_id)
     if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
-    if not agreement.bank_signature or not agreement.customer_signature:
+    if agreement.status != AgreementStatus.SIGNED:
         raise HTTPException(status_code=400, detail="Agreement not fully signed")
     loan_application = repos.loan_applications.get(agreement.loan_application_id)
     loan_application.loan_account_number = execution.loan_account_number

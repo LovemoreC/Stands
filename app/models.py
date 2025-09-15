@@ -183,6 +183,16 @@ class AgreementUpload(BaseModel):
     document: str
 
 
+class AgreementSign(BaseModel):
+    document_url: str
+
+
+class AgreementStatus(str, Enum):
+    DRAFT = "draft"
+    PARTIALLY_SIGNED = "partially_signed"
+    SIGNED = "signed"
+
+
 class Agreement(BaseModel):
     id: int
     loan_application_id: int
@@ -190,8 +200,9 @@ class Agreement(BaseModel):
     realtor: str
     document: str
     versions: List[str] = Field(default_factory=list)
-    bank_signature: Optional[str] = None
-    customer_signature: Optional[str] = None
+    bank_document_url: Optional[str] = None
+    customer_document_url: Optional[str] = None
+    status: AgreementStatus = AgreementStatus.DRAFT
     audit_log: List[str] = Field(default_factory=list)
 
 
