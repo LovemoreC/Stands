@@ -1,11 +1,7 @@
 import sys
 sys.path.append('.')
 
-from fastapi.testclient import TestClient
-from app.main import app
 from app.database import drop_db, init_db
-
-client = TestClient(app)
 
 
 def setup_function():
@@ -13,8 +9,10 @@ def setup_function():
     init_db()
 
 
-def test_unknown_role_rejected():
-    resp = client.post("/agents", json={"username": "bad", "role": "ghost", "password": "x"})
+def test_unknown_role_rejected(client):
+    resp = client.post(
+        "/agents", json={"username": "bad", "role": "ghost", "password": "x"}
+    )
     assert resp.status_code == 422
     detail = resp.json()["detail"]
     assert detail and "Input should" in detail[0]["msg"]

@@ -1,14 +1,10 @@
 import sys
 sys.path.append('.')
 
-from fastapi.testclient import TestClient
-from app.main import app
 from app.database import drop_db, init_db
 
-client = TestClient(app)
 
-
-def setup_agents():
+def setup_agents(client):
     drop_db()
     init_db()
     client.post(
@@ -29,8 +25,8 @@ def setup_agents():
     return {"admin": admin_token, "realtor": realtor_token}
 
 
-def test_upload_applications():
-    tokens = setup_agents()
+def test_upload_applications(client):
+    tokens = setup_agents(client)
     realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
     files = {"file": ("offer.pdf", b"data", "application/pdf")}

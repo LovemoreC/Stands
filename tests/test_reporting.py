@@ -1,13 +1,8 @@
-import sys
 import csv
-
+import sys
 sys.path.append('.')
 
-from fastapi.testclient import TestClient
-from app.main import app
 from app.database import drop_db, init_db
-
-client = TestClient(app)
 
 
 def setup_function():
@@ -15,7 +10,7 @@ def setup_function():
     init_db()
 
 
-def setup_data():
+def setup_data(client):
     client.post("/agents", json={"username": "admin", "role": "admin", "password": "a"})
     admin_token = client.post("/auth/login", json={"username": "admin", "password": "a"}).json()["token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
@@ -67,8 +62,8 @@ def setup_data():
     return admin_headers
 
 
-def test_report_headers_and_rows():
-    admin_headers = setup_data()
+def test_report_headers_and_rows(client):
+    admin_headers = setup_data(client)
     resp = client.get("/reports/properties", headers=admin_headers)
     assert resp.status_code == 200
     lines = resp.text.strip().splitlines()
@@ -82,8 +77,8 @@ def test_report_headers_and_rows():
     assert row["mandate_status"] == "accepted"
 
 
-def test_report_filtering():
-    admin_headers = setup_data()
+def test_report_filtering(client):
+    admin_headers = setup_data(client)
     resp = client.get("/reports/properties?status=sold", headers=admin_headers)
     assert resp.status_code == 200
     data = list(csv.DictReader(resp.text.splitlines()))
@@ -91,8 +86,8 @@ def test_report_filtering():
     assert data[0]["status"] == "sold"
 
 
-def test_mandate_and_loan_reports():
-    admin_headers = setup_data()
+def test_mandate_and_loan_reports(client):
+    admin_headers = setup_data(client)
     resp = client.get("/reports/mandates", headers=admin_headers)
     assert resp.status_code == 200
     data = list(csv.DictReader(resp.text.splitlines()))

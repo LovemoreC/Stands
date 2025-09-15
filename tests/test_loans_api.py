@@ -1,15 +1,11 @@
 import sys
 sys.path.append('.')
 
-from fastapi.testclient import TestClient
-from app.main import app
 from app.database import drop_db, init_db
 from app.models import LoanStatus
 
-client = TestClient(app)
 
-
-def setup_agents():
+def setup_agents(client):
     drop_db()
     init_db()
     client.post(
@@ -30,8 +26,8 @@ def setup_agents():
     return {"admin": admin_token, "user": user_token}
 
 
-def test_loan_flow():
-    tokens = setup_agents()
+def test_loan_flow(client):
+    tokens = setup_agents(client)
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     user_headers = {"Authorization": f"Bearer {tokens['user']}"}
 

@@ -1,14 +1,13 @@
-from fastapi.testclient import TestClient
-from app.main import app
-from app.database import drop_db, init_db
+import sys
+sys.path.append('.')
 
-client = TestClient(app)
+from app.database import drop_db, init_db
 
 def setup_function(_):
     drop_db()
     init_db()
 
-def register_users():
+def register_users(client):
     client.post("/agents", json={"username": "admin", "role": "admin", "password": "admin"})
     admin_token = client.post(
         "/auth/login", json={"username": "admin", "password": "admin"}
@@ -24,8 +23,8 @@ def register_users():
     ).json()["token"]
     return {"admin": admin_token, "agent": agent_token}
 
-def test_deposit_workflow():
-    tokens = register_users()
+def test_deposit_workflow(client):
+    tokens = register_users(client)
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     agent_headers = {"Authorization": f"Bearer {tokens['agent']}"}
 

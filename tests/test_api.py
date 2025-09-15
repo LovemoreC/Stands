@@ -1,13 +1,8 @@
 import sys
-
 sys.path.append(".")
 
-from fastapi.testclient import TestClient
-from app.main import app
 from app.models import PropertyStatus
 from app.database import drop_db, init_db
-
-client = TestClient(app)
 
 
 def setup_function():
@@ -15,7 +10,7 @@ def setup_function():
     init_db()
 
 
-def test_auth_mandate_and_available_view():
+def test_auth_mandate_and_available_view(client):
     # register agents
     resp = client.post(
         "/agents", json={"username": "admin", "role": "admin", "password": "a"}
