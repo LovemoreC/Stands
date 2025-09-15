@@ -5,6 +5,12 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class UploadedFile(BaseModel):
+    filename: str
+    content_type: str
+    content: str
+
+
 class PropertyStatus(str, Enum):
     AVAILABLE = "available"
     RESERVED = "reserved"
@@ -94,6 +100,7 @@ class Offer(BaseModel):
     property_id: int
     details: Optional[str] = None
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
+    document: Optional[UploadedFile] = None
 
 
 class PropertyApplication(BaseModel):
@@ -102,6 +109,7 @@ class PropertyApplication(BaseModel):
     property_id: int
     details: Optional[str] = None
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
+    document: Optional[UploadedFile] = None
 
 
 class AccountOpening(BaseModel):
@@ -112,6 +120,7 @@ class AccountOpening(BaseModel):
     account_number: Optional[str] = None
     deposit_threshold: Optional[float] = None
     deposits: List[float] = Field(default_factory=list)
+    document: Optional[UploadedFile] = None
 
 
 class LoanApplication(BaseModel):
