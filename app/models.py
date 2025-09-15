@@ -94,6 +94,26 @@ class LoanDecision(str, Enum):
     REJECTED = "rejected"
 
 
+class LoanStatus(str, Enum):
+    SUBMITTED = "submitted"
+    UNDER_REVIEW = "under_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class Loan(BaseModel):
+    id: int
+    borrower: str
+    amount: float
+    status: LoanStatus = LoanStatus.SUBMITTED
+    reason: Optional[str] = None
+
+
+class LoanDecisionRequest(BaseModel):
+    decision: LoanStatus
+    reason: Optional[str] = None
+
+
 class Offer(BaseModel):
     id: int
     realtor: str

@@ -288,3 +288,36 @@ export async function generateAgreement(
   if (!res.ok) throw new Error('Failed to generate agreement');
   return res.json();
 }
+
+export async function submitLoan(
+  token: string,
+  loan: { id: number; borrower: string; amount: number }
+) {
+  const res = await fetch('/loans', {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(loan),
+  });
+  if (!res.ok) throw new Error('Failed to submit loan');
+  return res.json();
+}
+
+export async function getPendingLoans(token: string) {
+  const res = await fetch('/loans/pending', { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load loans');
+  return res.json();
+}
+
+export async function decideLoan(
+  token: string,
+  id: number,
+  decision: { decision: string; reason?: string }
+) {
+  const res = await fetch(`/loans/${id}/decision`, {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(decision),
+  });
+  if (!res.ok) throw new Error('Failed to decide loan');
+  return res.json();
+}

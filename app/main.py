@@ -39,6 +39,9 @@ from .models import (
     LoanApplication,
     LoanDecisionUpdate,
     LoanDecision,
+    Loan,
+    LoanDecisionRequest,
+    LoanStatus,
     Agreement,
     AgreementCreate,
     AgreementUpload,
@@ -975,6 +978,57 @@ def decide_loan_application(
         application.status = SubmissionStatus.REJECTED
     repos.loan_applications.add(application)
     return application
+
+
+@app.post("/loans", response_model=Loan)
+def submit_loan(
+    loan: Loan,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.loans.get(loan.id):
+        raise HTTPException(status_code=400, detail="Loan ID exists")
+    if agent.username != loan.borrower:
+        raise HTTPException(status_code=403, detail="Cannot submit for another borrower")
+    repos.loans.add(loan)
+    return loan
+
+
+@app.get("/loans/pending", response_model=List[Loan])
+def list_pending_loans(
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    loans = [
+        l
+        for l in repos.loans.list()
+        if l.status in (LoanStatus.SUBMITTED, LoanStatus.UNDER_REVIEW)
+    ]
+    result = []
+    for loan in loans:
+        if loan.status == LoanStatus.SUBMITTED:
+            loan.status = LoanStatus.UNDER_REVIEW
+            repos.loans.add(loan)
+        result.append(loan)
+    return result
+
+
+@app.post("/loans/{loan_id}/decision", response_model=Loan)
+def decide_loan(
+    loan_id: int,
+    decision: LoanDecisionRequest,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    loan = repos.loans.get(loan_id)
+    if not loan:
+        raise HTTPException(status_code=404, detail="Loan not found")
+    if decision.decision not in (LoanStatus.APPROVED, LoanStatus.REJECTED):
+        raise HTTPException(status_code=400, detail="Invalid decision")
+    loan.status = decision.decision
+    loan.reason = decision.reason
+    repos.loans.add(loan)
+    return loan
 
 
 @app.get("/notifications", response_model=List[str])

@@ -9,6 +9,7 @@ import MultiStepForm from './pages/MultiStepForm';
 import AccountOpenings from './pages/AccountOpenings';
 import AccountOpeningDetail from './pages/AccountOpeningDetail';
 import LoanApplications from './pages/LoanApplications';
+import LoanApprovals from './pages/LoanApprovals';
 import AdminDashboard from './pages/AdminDashboard';
 import ComplianceDashboard from './pages/ComplianceDashboard';
 import Deposits from './pages/Deposits';
@@ -29,6 +30,7 @@ const App: React.FC = () => {
               <Link to="/mandates">Mandates</Link> |{' '}
               <Link to="/account-openings">Account Openings</Link> |{' '}
               <Link to="/loan-applications">Loan Applications</Link> |{' '}
+              <Link to="/loan-approvals">Loan Approvals</Link> |{' '}
               <Link to="/deposits">Deposits</Link> |{' '}
             </>
           )}
@@ -90,6 +92,14 @@ const App: React.FC = () => {
           element={
             <ProtectedRoute roles={["admin"]}>
               <LoanApplications />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/loan-approvals"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <LoanApprovals />
             </ProtectedRoute>
           }
         />
