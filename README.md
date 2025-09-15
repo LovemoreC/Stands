@@ -46,10 +46,10 @@ Rows missing required fields are reported with clear error messages and skipped.
 To build and run the application with Docker Compose:
 
 ```bash
- docker-compose up --build
+docker compose up --build
 ```
 
-This will build the image from the included `Dockerfile`, start the `web` service on port 8000, and persist the SQLite database in a named volume (`sqlite_data`) mounted at `/app/data`. The environment variable `DATABASE_URL=sqlite:///data/app.db` is provided to the container.
+This builds the image from the included `Dockerfile`, starts the `web` service on port 8000, and persists the SQLite database using a named volume (`sqlite_data`) mounted at `/app/data`. The environment variable `DATABASE_URL=sqlite:///data/app.db` is provided to the container.
 
 ## Authentication
 
