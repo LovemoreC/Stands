@@ -3,7 +3,8 @@ FROM python:3.11-slim AS builder
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+ENV PIP_DEFAULT_TIMEOUT=100
+RUN pip install --timeout 100 --no-cache-dir -r requirements.txt
 
 FROM python:3.11-slim
 
