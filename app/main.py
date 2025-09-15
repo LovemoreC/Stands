@@ -11,6 +11,7 @@ import uuid
 import os
 from io import BytesIO
 import jwt
+from passlib.context import CryptContext
 from pydantic import BaseModel
 from openpyxl import load_workbook, Workbook
 from .database import init_db, get_session, SessionLocal
@@ -58,6 +59,8 @@ from .models import (
 
 SECRET_KEY = os.environ["SECRET_KEY"]
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 app = FastAPI(title="Property Management API")
 
 app.add_middleware(
@@ -81,11 +84,14 @@ def get_projects_service(
 
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    return pwd_context.hash(password)
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return hmac.compare_digest(hash_password(password), hashed)
+    if hashed.startswith("$2"):
+        return pwd_context.verify(password, hashed)
+    legacy = hashlib.sha256(password.encode()).hexdigest()
+    return hmac.compare_digest(legacy, hashed)
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
@@ -197,6 +203,9 @@ def login(data: LoginRequest, repos: Repositories = Depends(get_repositories)):
     agent = repos.agents.get(data.username)
     if not agent or not verify_password(data.password, agent.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    if not agent.password_hash.startswith("$2"):
+        agent.password_hash = hash_password(data.password)
+        repos.agents.add(agent)
     token = create_access_token({"sub": agent.username, "role": agent.role.value})
     return {"token": token, "role": agent.role, "username": agent.username}
 

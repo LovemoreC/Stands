@@ -7,4 +7,5 @@ sqlalchemy
 openpyxl
 python-multipart
 pyjwt
+passlib[bcrypt]
 
