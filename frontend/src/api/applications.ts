@@ -4,7 +4,7 @@ export interface UploadedFile {
   content: string;
 }
 
-import { authHeaders } from './auth';
+import apiFetch from './client';
 
 export async function submitOfferApplication(
   params: {
@@ -21,13 +21,10 @@ export async function submitOfferApplication(
   form.append('property_id', String(params.property_id));
   if (params.details) form.append('details', params.details);
   form.append('file', params.file);
-  const res = await fetch('/applications/offer', {
+  return apiFetch('/applications/offer', {
     method: 'POST',
-    headers: authHeaders(),
     body: form,
   });
-  if (!res.ok) throw new Error('Failed to submit offer application');
-  return res.json();
 }
 
 export async function submitPropertyApplication(
@@ -45,13 +42,10 @@ export async function submitPropertyApplication(
   form.append('property_id', String(params.property_id));
   if (params.details) form.append('details', params.details);
   form.append('file', params.file);
-  const res = await fetch('/applications/property', {
+  return apiFetch('/applications/property', {
     method: 'POST',
-    headers: authHeaders(),
     body: form,
   });
-  if (!res.ok) throw new Error('Failed to submit property application');
-  return res.json();
 }
 
 export async function submitAccountApplication(
@@ -62,11 +56,8 @@ export async function submitAccountApplication(
   form.append('realtor', params.realtor);
   if (params.details) form.append('details', params.details);
   form.append('file', params.file);
-  const res = await fetch('/applications/account', {
+  return apiFetch('/applications/account', {
     method: 'POST',
-    headers: authHeaders(),
     body: form,
   });
-  if (!res.ok) throw new Error('Failed to submit account application');
-  return res.json();
 }

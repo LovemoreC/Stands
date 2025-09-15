@@ -12,8 +12,8 @@ export function LoginForm({ onLogin }: { onLogin?: () => void }) {
       await login(username, password);
       setError('');
       onLogin?.();
-    } catch {
-      setError('Invalid credentials');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid credentials');
     }
   };
 
