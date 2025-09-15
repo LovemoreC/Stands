@@ -1,11 +1,21 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY --from=builder /usr/local /usr/local
 COPY app/ ./app
+
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app
+USER appuser
 
 EXPOSE 8000
 
