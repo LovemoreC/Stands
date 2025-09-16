@@ -20,10 +20,15 @@ cp .env.example .env
 ## Running
 
 ```
-SECRET_KEY=your-secret-key uvicorn app.main:app --reload
+SECRET_KEY=your-secret-key \
+FRONTEND_ORIGINS="http://localhost:5173" \
+uvicorn app.main:app --reload
 ```
 
 Interactive docs will be available at `http://127.0.0.1:8000/docs`.
+
+Set `FRONTEND_ORIGINS` to a comma-separated list of allowed origins if your frontend runs somewhere other than
+`http://localhost:5173`.
 
 ## Admin Dashboard
 
@@ -60,7 +65,8 @@ docker compose up --build
 ```
 
 This builds the image from the included `Dockerfile`, starts the `web` service on port 8000, and persists the SQLite database using a named volume (`sqlite_data`) mounted at `/app/data`. The environment variable `DATABASE_URL=sqlite:///data/app.db` is provided to the container.
-The `SECRET_KEY` used for JWT signing is also read from the environment.
+The `SECRET_KEY` used for JWT signing is also read from the environment. Use `FRONTEND_ORIGINS` to expose a comma-separated list
+of allowed CORS origins (defaults to `http://localhost:5173`).
 
 ## Authentication
 
