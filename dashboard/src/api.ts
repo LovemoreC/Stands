@@ -1,10 +1,18 @@
+const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
+
+const apiUrl = (path: string) => {
+  const normalizedBase = API_BASE.replace(/\/+$/, '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+};
+
 export const headers = (token: string) => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${token}`,
 });
 
 export async function getDashboard(token: string) {
-  const res = await fetch('/dashboard', { headers: headers(token) });
+  const res = await fetch(apiUrl('/dashboard'), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load dashboard');
   return res.json();
 }
@@ -15,19 +23,19 @@ export async function getAuditLog(
 ) {
   const params = new URLSearchParams(filters as Record<string, string>);
   const url = params.toString() ? `/audit-log?${params}` : '/audit-log';
-  const res = await fetch(url, { headers: headers(token) });
+  const res = await fetch(apiUrl(url), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load audit log');
   return res.json();
 }
 
 export async function getProjects(token: string) {
-  const res = await fetch('/projects', { headers: headers(token) });
+  const res = await fetch(apiUrl('/projects'), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load projects');
   return res.json();
 }
 
 export async function createProject(token: string, project: { id: number; name: string }) {
-  const res = await fetch('/projects', {
+  const res = await fetch(apiUrl('/projects'), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify(project),
@@ -37,13 +45,13 @@ export async function createProject(token: string, project: { id: number; name: 
 }
 
 export async function getStands(token: string) {
-  const res = await fetch('/stands/available', { headers: headers(token) });
+  const res = await fetch(apiUrl('/stands/available'), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load stands');
   return res.json();
 }
 
 export async function createStand(token: string, stand: { id: number; project_id: number; name: string; size: number; price: number }) {
-  const res = await fetch('/stands', {
+  const res = await fetch(apiUrl('/stands'), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify(stand),
@@ -53,7 +61,7 @@ export async function createStand(token: string, stand: { id: number; project_id
 }
 
 export async function updateStand(token: string, id: number, stand: { project_id: number; name: string; size: number; price: number }) {
-  const res = await fetch(`/stands/${id}`, {
+  const res = await fetch(apiUrl(`/stands/${id}`), {
     method: 'PUT',
     headers: headers(token),
     body: JSON.stringify(stand),
@@ -63,7 +71,7 @@ export async function updateStand(token: string, id: number, stand: { project_id
 }
 
 export async function deleteStand(token: string, id: number) {
-  const res = await fetch(`/stands/${id}`, {
+  const res = await fetch(apiUrl(`/stands/${id}`), {
     method: 'DELETE',
     headers: headers(token),
   });
@@ -72,7 +80,7 @@ export async function deleteStand(token: string, id: number) {
 }
 
 export async function assignMandate(token: string, standId: number, agent: string) {
-  const res = await fetch(`/stands/${standId}/mandate`, {
+  const res = await fetch(apiUrl(`/stands/${standId}/mandate`), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify({ agent }),
@@ -82,7 +90,7 @@ export async function assignMandate(token: string, standId: number, agent: strin
 }
 
 export async function listMandates(token: string) {
-  const res = await fetch('/mandates', { headers: headers(token) });
+  const res = await fetch(apiUrl('/mandates'), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load mandates');
   return res.json();
 }
@@ -91,7 +99,7 @@ export async function createMandate(
   token: string,
   mandate: { id: number; project_id: number; agent: string; status?: string },
 ) {
-  const res = await fetch('/mandates', {
+  const res = await fetch(apiUrl('/mandates'), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify(mandate),
@@ -105,7 +113,7 @@ export async function updateMandate(
   id: number,
   mandate: { id: number; project_id: number; agent: string; status: string },
 ) {
-  const res = await fetch(`/mandates/${id}`, {
+  const res = await fetch(apiUrl(`/mandates/${id}`), {
     method: 'PUT',
     headers: headers(token),
     body: JSON.stringify(mandate),
@@ -115,7 +123,7 @@ export async function updateMandate(
 }
 
 export async function getMandateHistory(token: string, id: number) {
-  const res = await fetch(`/mandates/${id}/history`, { headers: headers(token) });
+  const res = await fetch(apiUrl(`/mandates/${id}/history`), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load mandate history');
   return res.json();
 }
@@ -138,7 +146,7 @@ export async function submitOffer(
     opts.body = JSON.stringify(offer);
     opts.headers = headers(token);
   }
-  const res = await fetch('/offers', opts);
+  const res = await fetch(apiUrl('/offers'), opts);
   if (!res.ok) throw new Error('Failed to submit offer');
   return res.json();
 }
@@ -160,7 +168,7 @@ export async function submitAccountOpening(
     opts.body = JSON.stringify(req);
     opts.headers = headers(token);
   }
-  const res = await fetch('/account-openings', opts);
+  const res = await fetch(apiUrl('/account-openings'), opts);
   if (!res.ok) throw new Error('Failed to submit account opening');
   return res.json();
 }
@@ -183,20 +191,20 @@ export async function submitPropertyApplication(
     opts.body = JSON.stringify(app);
     opts.headers = headers(token);
   }
-  const res = await fetch('/property-applications', opts);
+  const res = await fetch(apiUrl('/property-applications'), opts);
   if (!res.ok) throw new Error('Failed to submit property application');
   return res.json();
 }
 
 export async function getAccountOpenings(token: string, status?: string) {
   const url = status ? `/account-openings?status=${status}` : '/account-openings';
-  const res = await fetch(url, { headers: headers(token) });
+  const res = await fetch(apiUrl(url), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load account openings');
   return res.json();
 }
 
 export async function getAccountOpening(token: string, id: number) {
-  const res = await fetch(`/account-openings/${id}`, { headers: headers(token) });
+  const res = await fetch(apiUrl(`/account-openings/${id}`), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load account opening');
   return res.json();
 }
@@ -206,7 +214,7 @@ export async function openAccount(
   id: number,
   data: { account_number: string; deposit_threshold: number }
 ) {
-  const res = await fetch(`/account-openings/${id}/open`, {
+  const res = await fetch(apiUrl(`/account-openings/${id}/open`), {
     method: 'PUT',
     headers: headers(token),
     body: JSON.stringify(data),
@@ -216,7 +224,7 @@ export async function openAccount(
 }
 
 export async function recordDeposit(token: string, id: number, amount: number) {
-  const res = await fetch(`/account-openings/${id}/deposit`, {
+  const res = await fetch(apiUrl(`/account-openings/${id}/deposit`), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify({ amount }),
@@ -226,7 +234,7 @@ export async function recordDeposit(token: string, id: number, amount: number) {
 }
 
 export async function getPendingDeposits(token: string) {
-  const res = await fetch('/accounts/deposits/pending', { headers: headers(token) });
+  const res = await fetch(apiUrl('/accounts/deposits/pending'), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load pending deposits');
   return res.json();
 }
@@ -236,7 +244,7 @@ export async function openDepositAccount(
   id: number,
   data: { account_number: string; deposit_threshold: number },
 ) {
-  const res = await fetch(`/accounts/deposits/${id}/open`, {
+  const res = await fetch(apiUrl(`/accounts/deposits/${id}/open`), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify(data),
@@ -246,7 +254,7 @@ export async function openDepositAccount(
 }
 
 export async function recordAccountDeposit(token: string, id: number, amount: number) {
-  const res = await fetch(`/accounts/deposits/${id}/deposit`, {
+  const res = await fetch(apiUrl(`/accounts/deposits/${id}/deposit`), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify({ amount }),
@@ -257,7 +265,7 @@ export async function recordAccountDeposit(token: string, id: number, amount: nu
 
 export async function getLoanApplications(token: string, status?: string) {
   const url = status ? `/loan-applications?status=${status}` : '/loan-applications';
-  const res = await fetch(url, { headers: headers(token) });
+  const res = await fetch(apiUrl(url), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load loan applications');
   return res.json();
 }
@@ -267,7 +275,7 @@ export async function decideLoanApplication(
   id: number,
   decision: { decision: string; reason?: string }
 ) {
-  const res = await fetch(`/loan-applications/${id}/decision`, {
+  const res = await fetch(apiUrl(`/loan-applications/${id}/decision`), {
     method: 'PUT',
     headers: headers(token),
     body: JSON.stringify(decision),
@@ -280,7 +288,7 @@ export async function generateAgreement(
   token: string,
   data: { id: number; loan_application_id: number; property_id: number }
 ) {
-  const res = await fetch('/agreements', {
+  const res = await fetch(apiUrl('/agreements'), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify(data),
@@ -294,7 +302,7 @@ export async function signAgreement(
   id: number,
   documentUrl: string,
 ) {
-  const res = await fetch(`/agreements/${id}/sign`, {
+  const res = await fetch(apiUrl(`/agreements/${id}/sign`), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify({ document_url: documentUrl }),
@@ -304,7 +312,7 @@ export async function signAgreement(
 }
 
 export async function openLoanAccount(token: string, agreementId: number) {
-  const res = await fetch('/loan-accounts', {
+  const res = await fetch(apiUrl('/loan-accounts'), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify({ agreement_id: agreementId }),
@@ -317,7 +325,7 @@ export async function submitLoan(
   token: string,
   loan: { id: number; borrower: string; amount: number }
 ) {
-  const res = await fetch('/loans', {
+  const res = await fetch(apiUrl('/loans'), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify(loan),
@@ -327,7 +335,7 @@ export async function submitLoan(
 }
 
 export async function getPendingLoans(token: string) {
-  const res = await fetch('/loans/pending', { headers: headers(token) });
+  const res = await fetch(apiUrl('/loans/pending'), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load loans');
   return res.json();
 }
@@ -337,7 +345,7 @@ export async function decideLoan(
   id: number,
   decision: { decision: string; reason?: string }
 ) {
-  const res = await fetch(`/loans/${id}/decision`, {
+  const res = await fetch(apiUrl(`/loans/${id}/decision`), {
     method: 'POST',
     headers: headers(token),
     body: JSON.stringify(decision),
