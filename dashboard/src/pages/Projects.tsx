@@ -1,6 +1,9 @@
 import React from 'react';
 import { useAuth } from '../auth';
-import { useProjects, createProject } from '../../frontend/src/api/projects';
+import {
+  getProjects as fetchProjects,
+  createProject as createProjectRequest,
+} from '../api';
 
 interface Project {
   id: number;
@@ -9,9 +12,19 @@ interface Project {
 
 const Projects: React.FC = () => {
   const { auth } = useAuth();
-  const { projects, setProjects } = useProjects(auth?.token);
+  const [projects, setProjects] = React.useState<Project[]>([]);
   const [search, setSearch] = React.useState('');
   const [form, setForm] = React.useState({ id: '', name: '' });
+
+  React.useEffect(() => {
+    if (!auth?.token) {
+      setProjects([]);
+      return;
+    }
+    fetchProjects(auth.token)
+      .then(data => setProjects(data))
+      .catch(console.error);
+  }, [auth?.token]);
 
   const filtered = projects.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -19,8 +32,8 @@ const Projects: React.FC = () => {
     e.preventDefault();
     if (!form.id || !form.name || !auth) return;
     try {
-      const project = await createProject(auth.token, { id: Number(form.id), name: form.name });
-      setProjects([...projects, project]);
+      const project = await createProjectRequest(auth.token, { id: Number(form.id), name: form.name });
+      setProjects(prev => [...prev, project]);
       setForm({ id: '', name: '' });
     } catch (err) {
       console.error(err);

@@ -1,10 +1,10 @@
 import React from 'react';
 import { useAuth } from '../auth';
 import {
-  useProjectStands,
-  createStand as createProjectStand,
-  deleteStand as deleteProjectStand,
-} from '../../frontend/src/api/projects';
+  getStands as fetchStands,
+  createStand as createStandRequest,
+  deleteStand as deleteStandRequest,
+} from '../api';
 
 interface Stand {
   id: number;
@@ -17,14 +17,30 @@ interface Stand {
 const Stands: React.FC = () => {
   const { auth } = useAuth();
   const [projectFilter, setProjectFilter] = React.useState('');
-  const { stands, setStands } = useProjectStands(
-    auth?.token,
-    projectFilter ? Number(projectFilter) : undefined,
-  );
+  const [stands, setStands] = React.useState<Stand[]>([]);
   const [search, setSearch] = React.useState('');
   const [form, setForm] = React.useState({ id: '', project_id: '', name: '', size: '', price: '' });
 
-  const filtered = stands.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
+  const projectIdFilter = projectFilter.trim();
+
+  React.useEffect(() => {
+    if (!auth?.token) {
+      setStands([]);
+      return;
+    }
+    fetchStands(auth.token)
+      .then(data => setStands(data))
+      .catch(console.error);
+  }, [auth?.token]);
+
+  const filtered = stands
+    .filter(stand => {
+      if (!projectIdFilter) return true;
+      const parsed = Number(projectIdFilter);
+      if (Number.isNaN(parsed)) return true;
+      return stand.project_id === parsed;
+    })
+    .filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,8 +53,8 @@ const Stands: React.FC = () => {
       price: Number(form.price),
     };
     try {
-      const stand = await createProjectStand(auth.token, payload.project_id, payload);
-      setStands([...stands, stand]);
+      const stand = await createStandRequest(auth.token, payload);
+      setStands(prev => [...prev, stand]);
       setForm({ id: '', project_id: '', name: '', size: '', price: '' });
     } catch (err) {
       console.error(err);
@@ -50,8 +66,8 @@ const Stands: React.FC = () => {
     try {
       const stand = stands.find(s => s.id === id);
       if (!stand) return;
-      await deleteProjectStand(auth.token, stand.project_id, id);
-      setStands(stands.filter(s => s.id !== id));
+      await deleteStandRequest(auth.token, id);
+      setStands(prev => prev.filter(s => s.id !== id));
     } catch (err) {
       console.error(err);
     }
