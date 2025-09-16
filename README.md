@@ -35,7 +35,10 @@ npm install
 npm run dev
 ```
 
-The dev server proxies API requests to the FastAPI backend running on port 8000.
+The dev server proxies API requests to the FastAPI backend using the `/api` prefix.
+Set `VITE_API_PROXY_TARGET` to control where that proxy points (defaults to `http://localhost:8000`).
+Client requests use the `VITE_API_BASE` prefix (defaults to `/api`), which lets the dashboard talk to a backend hosted elsewhere.
+When running with Docker Compose, set `VITE_API_PROXY_TARGET=http://web:8000` so the proxy reaches the existing `web` service container.
 
 ## Importing Projects and Stands
 
