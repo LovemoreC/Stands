@@ -9,6 +9,7 @@ import csv
 import base64
 import uuid
 import os
+import logging
 from io import BytesIO
 import jwt
 from passlib.context import CryptContext
@@ -57,7 +58,22 @@ from .models import (
     UploadedFile,
 )
 
+logger = logging.getLogger(__name__)
+
+DEFAULT_FRONTEND_ORIGINS = ["http://localhost:5173"]
+
+
+def resolve_frontend_origins() -> List[str]:
+    raw_origins = os.environ.get("FRONTEND_ORIGINS")
+    if not raw_origins:
+        return DEFAULT_FRONTEND_ORIGINS.copy()
+    parsed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+    return parsed_origins or DEFAULT_FRONTEND_ORIGINS.copy()
+
+
 SECRET_KEY = os.environ["SECRET_KEY"]
+
+FRONTEND_ORIGINS = resolve_frontend_origins()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -65,7 +81,7 @@ app = FastAPI(title="Property Management API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -74,6 +90,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup() -> None:
+    logger.info("Configured frontend origins: %s", ", ".join(FRONTEND_ORIGINS))
     init_db()
 
 
