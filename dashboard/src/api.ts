@@ -133,6 +133,7 @@ export async function submitOffer(
   offer: { id: number; realtor: string; property_id: number; details?: string; file?: File }
 ) {
   const opts: RequestInit = { method: 'POST' };
+  const isFileUpload = Boolean(offer.file);
   if (offer.file) {
     const form = new FormData();
     form.append('id', String(offer.id));
@@ -146,7 +147,8 @@ export async function submitOffer(
     opts.body = JSON.stringify(offer);
     opts.headers = headers(token);
   }
-  const res = await fetch(apiUrl('/offers'), opts);
+  const endpoint = isFileUpload ? '/applications/offer' : '/offers';
+  const res = await fetch(apiUrl(endpoint), opts);
   if (!res.ok) throw new Error('Failed to submit offer');
   return res.json();
 }
@@ -156,6 +158,7 @@ export async function submitAccountOpening(
   req: { id: number; realtor: string; details?: string; file?: File }
 ) {
   const opts: RequestInit = { method: 'POST' };
+  const isFileUpload = Boolean(req.file);
   if (req.file) {
     const form = new FormData();
     form.append('id', String(req.id));
@@ -168,7 +171,8 @@ export async function submitAccountOpening(
     opts.body = JSON.stringify(req);
     opts.headers = headers(token);
   }
-  const res = await fetch(apiUrl('/account-openings'), opts);
+  const endpoint = isFileUpload ? '/applications/account' : '/account-openings';
+  const res = await fetch(apiUrl(endpoint), opts);
   if (!res.ok) throw new Error('Failed to submit account opening');
   return res.json();
 }
@@ -178,6 +182,7 @@ export async function submitPropertyApplication(
   app: { id: number; realtor: string; property_id: number; details?: string; file?: File }
 ) {
   const opts: RequestInit = { method: 'POST' };
+  const isFileUpload = Boolean(app.file);
   if (app.file) {
     const form = new FormData();
     form.append('id', String(app.id));
@@ -191,7 +196,8 @@ export async function submitPropertyApplication(
     opts.body = JSON.stringify(app);
     opts.headers = headers(token);
   }
-  const res = await fetch(apiUrl('/property-applications'), opts);
+  const endpoint = isFileUpload ? '/applications/property' : '/property-applications';
+  const res = await fetch(apiUrl(endpoint), opts);
   if (!res.ok) throw new Error('Failed to submit property application');
   return res.json();
 }
