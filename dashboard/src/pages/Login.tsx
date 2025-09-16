@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../auth';
 import { useNavigate } from 'react-router-dom';
+import { login as loginRequest } from '../api';
 
 const Login: React.FC = () => {
   const { login } = useAuth();
@@ -13,13 +14,7 @@ const Login: React.FC = () => {
     e.preventDefault();
     setError('');
     try {
-      const res = await fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      if (!res.ok) throw new Error('Login failed');
-      const data = await res.json();
+      const data = await loginRequest({ username, password });
       login(data.token, data.role, data.username);
       if (data.role === 'agent') {
         navigate('/dashboard');
