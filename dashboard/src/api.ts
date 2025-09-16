@@ -21,6 +21,16 @@ export const headers = (token: string) => ({
   Authorization: `Bearer ${token}`,
 });
 
+export async function downloadReport(token: string, report: string, format: string) {
+  const query = new URLSearchParams({ format }).toString();
+  const path = `/reports/${encodeURIComponent(report)}`;
+  const res = await fetch(apiUrl(`${path}?${query}`), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to download report');
+  return res.blob();
+}
+
 export async function getDashboard(token: string) {
   const res = await fetch(apiUrl('/dashboard'), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load dashboard');
