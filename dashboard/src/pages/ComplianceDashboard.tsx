@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../auth';
-import { getDashboard, getAuditLog } from '../api';
+import { downloadReport, getAuditLog, getDashboard } from '../api';
 
 const ComplianceDashboard: React.FC = () => {
   const { auth } = useAuth();
@@ -27,9 +27,33 @@ const ComplianceDashboard: React.FC = () => {
 
   if (!auth) return null;
 
-  const exportReport = (report: string, format: string) => {
-    window.location.href = `/reports/${report}?format=${format}`;
-  };
+  const exportReport = React.useCallback(
+    async (report: string, format: string) => {
+      if (!auth) return;
+      let objectUrl: string | null = null;
+      let link: HTMLAnchorElement | null = null;
+      try {
+        const blob = await downloadReport(auth.token, report, format);
+        objectUrl = URL.createObjectURL(blob);
+        const extension = format === 'excel' ? 'xlsx' : format;
+        link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = `${report}.${extension}`;
+        document.body.appendChild(link);
+        link.click();
+      } catch (error) {
+        console.error('Failed to export report', error);
+      } finally {
+        if (link && document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+      }
+    },
+    [auth],
+  );
 
   return (
     <div>
