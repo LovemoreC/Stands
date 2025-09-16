@@ -43,7 +43,7 @@ npm run dev
 The dev server proxies API requests to the FastAPI backend using the `/api` prefix.
 Set `VITE_API_PROXY_TARGET` to control where that proxy points (defaults to `http://localhost:8000`).
 Client requests use the `VITE_API_BASE` prefix (defaults to `/api`), which lets the dashboard talk to a backend hosted elsewhere.
-When running with Docker Compose, set `VITE_API_PROXY_TARGET=http://web:8000` so the proxy reaches the existing `web` service container.
+When running the dev server against Docker Compose, set `VITE_API_PROXY_TARGET=http://web:8000` so the proxy reaches the existing `web` service container.
 
 ## Importing Projects and Stands
 
@@ -58,15 +58,21 @@ Rows missing required fields are reported with clear error messages and skipped.
 
 ## Docker Compose
 
-To build and run the application with Docker Compose:
+To build and run the API and dashboard together with Docker Compose:
 
 ```bash
 docker compose up --build
 ```
 
-This builds the image from the included `Dockerfile`, starts the `web` service on port 8000, and persists the SQLite database using a named volume (`sqlite_data`) mounted at `/app/data`. The environment variable `DATABASE_URL=sqlite:///data/app.db` is provided to the container.
-The `SECRET_KEY` used for JWT signing is also read from the environment. Use `FRONTEND_ORIGINS` to expose a comma-separated list
-of allowed CORS origins (defaults to `http://localhost:5173`).
+This builds the FastAPI backend from the repository root and the production dashboard image defined in `dashboard/Dockerfile`.
+Once the containers are running you can reach:
+
+- Dashboard: <http://localhost:8080>
+- API: <http://localhost:8000> (interactive docs at <http://localhost:8000/docs>)
+
+The backend persists the SQLite database using the named volume `sqlite_data` mounted at `/app/data` and reads environment values from `.env`.
+By default it allows requests from both `http://localhost:8080` and `http://localhost:5173` so the static dashboard and the Vite dev server can call the API.
+The frontend image is built with `VITE_API_BASE=http://web:8000`, which points API calls from the bundled code to the backend service on the Docker network.
 
 ## Authentication
 
