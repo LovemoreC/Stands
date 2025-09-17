@@ -9,8 +9,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/app.db")
 if DATABASE_URL.startswith("sqlite:///"):
     db_path = Path(DATABASE_URL.replace("sqlite:///", ""))
     db_path.parent.mkdir(parents=True, exist_ok=True)
-
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
