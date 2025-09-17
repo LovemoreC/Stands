@@ -1299,24 +1299,26 @@ def create_agreement(
 @app.get("/agreements/{agreement_id}", response_model=Agreement)
 def get_agreement(
     agreement_id: int,
-    _: Agent = Depends(get_current_agent),
+    agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
     agreement = repos.agreements.get(agreement_id)
     if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
+    _ensure_owner(agreement.realtor, agent)
     return agreement
 
 
 @app.get("/agreements/{agreement_id}/document")
 def view_agreement_document(
     agreement_id: int,
-    _: Agent = Depends(get_current_agent),
+    agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
     agreement = repos.agreements.get(agreement_id)
     if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
+    _ensure_owner(agreement.realtor, agent)
     return Response(content=agreement.document, media_type="text/plain")
 
 
@@ -1369,6 +1371,7 @@ def upload_agreement(
     agreement = repos.agreements.get(agreement_id)
     if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
+    _ensure_owner(agreement.realtor, agent)
     agreement.versions.append(upload.document)
     agreement.document = upload.document
     timestamp = datetime.utcnow().isoformat()
