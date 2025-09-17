@@ -173,11 +173,18 @@ async def log_request(request: Request, call_next):
     session = SessionLocal()
     repos = Repositories(session)
     timestamp = datetime.utcnow().isoformat()
-    response = await call_next(request)
-    repos.audit_log.append(
-        f"{timestamp} - {username} - {request.method} {request.url.path} - {response.status_code}"
-    )
-    session.close()
+    status_code = 500
+    response: Response | None = None
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception:
+        raise
+    finally:
+        repos.audit_log.append(
+            f"{timestamp} - {username} - {request.method} {request.url.path} - {status_code}"
+        )
+        session.close()
     return response
 
 
