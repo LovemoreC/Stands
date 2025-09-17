@@ -71,6 +71,15 @@ def test_agreement_flow(client):
     assert "Stand1" in data["document"]
     assert data["status"] == "draft"
 
+    resp = client.get("/agreements/1", headers=intruder_headers)
+    assert resp.status_code == 403
+
+    resp = client.get("/agreements/1", headers=realtor_headers)
+    assert resp.status_code == 200
+
+    resp = client.get("/agreements/1", headers=admin_headers)
+    assert resp.status_code == 200
+
     resp = client.get("/agreements/1/document", headers=admin_headers)
     assert resp.status_code == 200
     assert "Stand1" in resp.text
@@ -107,14 +116,31 @@ def test_agreement_flow(client):
 
     resp = client.post(
         "/agreements/1/upload",
-        json={"document": "Updated"},
+        json={"document": "Intrusion"},
+        headers=intruder_headers,
+    )
+    assert resp.status_code == 403
+
+    resp = client.post(
+        "/agreements/1/upload",
+        json={"document": "Updated by Realtor"},
+        headers=realtor_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["document"] == "Updated by Realtor"
+    assert len(data["versions"]) == 2
+
+    resp = client.post(
+        "/agreements/1/upload",
+        json={"document": "Updated by Admin"},
         headers=admin_headers,
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["document"] == "Updated"
-    assert len(data["versions"]) == 2
-    assert len(data["audit_log"]) >= 3
+    assert data["document"] == "Updated by Admin"
+    assert len(data["versions"]) == 3
+    assert len(data["audit_log"]) >= 4
 
     resp = client.post(
         "/loan-accounts",
