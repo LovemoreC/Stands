@@ -57,3 +57,23 @@ def test_project_and_stand_crud(client):
     # delete project
     resp = client.delete("/projects/1", headers=headers)
     assert resp.status_code == 200
+
+
+def test_delete_project_with_existing_stands_rejected(client):
+    headers = auth_headers(client, "admin")
+
+    project = {"id": 1, "name": "P"}
+    resp = client.post("/projects", json=project, headers=headers)
+    assert resp.status_code == 200
+
+    stand = {"id": 10, "project_id": 1, "name": "S", "size": 10, "price": 100}
+    resp = client.post("/projects/1/stands", json=stand, headers=headers)
+    assert resp.status_code == 200
+
+    resp = client.delete("/projects/1", headers=headers)
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Cannot delete project with existing stands"
+
+    resp = client.get("/projects/1/stands", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1

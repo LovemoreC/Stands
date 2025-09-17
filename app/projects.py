@@ -33,6 +33,12 @@ class ProjectsService:
         project = self.repos.projects.get(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
+        stands = [s for s in self.repos.stands.list() if s.project_id == project_id]
+        if stands:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete project with existing stands",
+            )
         self.repos.projects.delete(project_id)
         return project
 
