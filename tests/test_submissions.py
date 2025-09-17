@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append(".")
 
 from app.models import SubmissionStatus
@@ -75,6 +76,99 @@ def test_submissions_and_status_updates(client):
     # Realtor checks account opening status
     resp = client.get("/account-openings/1", headers=realtor_headers)
     assert resp.json()["status"] == SubmissionStatus.COMPLETED.value
+
+
+def test_submission_payload_privileged_fields_are_sanitized(client):
+    tokens = setup_agents(client)
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
+
+    offer_payload = {
+        "id": 101,
+        "realtor": "realtor",
+        "property_id": 1,
+        "status": SubmissionStatus.COMPLETED.value,
+    }
+    resp = client.post("/offers", json=offer_payload, headers=realtor_headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == SubmissionStatus.SUBMITTED.value
+    resp = client.get("/offers/101", headers=realtor_headers)
+    assert resp.json()["status"] == SubmissionStatus.SUBMITTED.value
+
+    application_payload = {
+        "id": 202,
+        "realtor": "realtor",
+        "property_id": 2,
+        "status": SubmissionStatus.COMPLETED.value,
+    }
+    resp = client.post(
+        "/property-applications", json=application_payload, headers=realtor_headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == SubmissionStatus.SUBMITTED.value
+    resp = client.get("/property-applications/202", headers=realtor_headers)
+    assert resp.json()["status"] == SubmissionStatus.SUBMITTED.value
+
+    account_payload = {
+        "id": 303,
+        "realtor": "realtor",
+        "status": SubmissionStatus.COMPLETED.value,
+        "account_number": "MAL123",
+        "deposit_threshold": 9999,
+        "deposits": [100, 200],
+    }
+    resp = client.post("/account-openings", json=account_payload, headers=realtor_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == SubmissionStatus.SUBMITTED.value
+    assert body["account_number"] is None
+    assert body["deposit_threshold"] is None
+    assert body["deposits"] == []
+    resp = client.get("/account-openings/303", headers=realtor_headers)
+    stored = resp.json()
+    assert stored["status"] == SubmissionStatus.SUBMITTED.value
+    assert stored["account_number"] is None
+    assert stored["deposit_threshold"] is None
+    assert stored["deposits"] == []
+
+    resp = client.put(
+        "/account-openings/303/open",
+        json={"account_number": "SAFE", "deposit_threshold": 100},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    resp = client.post(
+        "/account-openings/303/deposit",
+        json={"amount": 100},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
+    loan_app_payload = {
+        "id": 404,
+        "realtor": "realtor",
+        "account_id": 303,
+        "documents": ["doc"],
+        "status": SubmissionStatus.COMPLETED.value,
+        "decision": "approved",
+        "reason": "sensitive",
+        "loan_account_number": "MAL456",
+    }
+    resp = client.post(
+        "/loan-applications", json=loan_app_payload, headers=realtor_headers
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == SubmissionStatus.SUBMITTED.value
+    assert body["decision"] is None
+    assert body["reason"] is None
+    assert body["loan_account_number"] is None
+    resp = client.get("/loan-applications/404", headers=realtor_headers)
+    stored = resp.json()
+    assert stored["status"] == SubmissionStatus.SUBMITTED.value
+    assert stored["decision"] is None
+    assert stored["reason"] is None
+    assert stored["loan_account_number"] is None
 
 
 def test_account_opening_deposit_tracking(client):
