@@ -193,6 +193,52 @@ def test_loan_application_flow(client):
     assert resp.json()["reason"] == "Insufficient credit"
 
 
+def test_loan_application_realtor_mismatch_rejected(client):
+    tokens = setup_agents(client)
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
+
+    # Realtor submits and completes an account opening
+    account = {"id": 7, "realtor": "realtor"}
+    resp = client.post("/account-openings", json=account, headers=realtor_headers)
+    assert resp.status_code == 200
+
+    resp = client.put(
+        "/account-openings/7/open",
+        json={"account_number": "AC7", "deposit_threshold": 100},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
+    resp = client.post(
+        "/account-openings/7/deposit",
+        json={"amount": 100},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
+    # Another agent attempts to submit a loan application using this account
+    resp = client.post(
+        "/agents",
+        json={"username": "other", "role": "agent", "password": "c"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    other_token = client.post(
+        "/auth/login", json={"username": "other", "password": "c"}
+    ).json()["token"]
+    other_headers = {"Authorization": f"Bearer {other_token}"}
+
+    loan_app = {
+        "id": 99,
+        "realtor": "other",
+        "account_id": 7,
+        "documents": ["doc"],
+    }
+    resp = client.post("/loan-applications", json=loan_app, headers=other_headers)
+    assert resp.status_code == 403
+
+
 def test_account_opening_queue_listing(client):
     tokens = setup_agents(client)
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}

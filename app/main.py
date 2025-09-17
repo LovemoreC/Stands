@@ -1004,6 +1004,8 @@ def submit_loan_application(
     account = repos.account_openings.get(application.account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+    if account.realtor != agent.username or account.realtor != application.realtor:
+        raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
     if account.status != SubmissionStatus.COMPLETED:
         raise HTTPException(
             status_code=400, detail="Deposits not sufficient for loan application"
