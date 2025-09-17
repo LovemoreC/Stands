@@ -767,9 +767,14 @@ def submit_offer(
         raise HTTPException(status_code=400, detail="Offer ID exists")
     if agent.username != offer.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
-    repos.offers.add(offer)
-    repos.notifications.append(f"Offer {offer.id} submitted by {offer.realtor}")
-    return offer
+    sanitized_offer = offer.model_copy(
+        update={"status": SubmissionStatus.SUBMITTED}
+    )
+    repos.offers.add(sanitized_offer)
+    repos.notifications.append(
+        f"Offer {sanitized_offer.id} submitted by {sanitized_offer.realtor}"
+    )
+    return sanitized_offer
 
 
 @app.get("/offers/{offer_id}", response_model=Offer)
@@ -810,11 +815,14 @@ def submit_property_application(
         raise HTTPException(status_code=400, detail="Application ID exists")
     if agent.username != application.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
-    repos.applications.add(application)
-    repos.notifications.append(
-        f"Property application {application.id} submitted by {application.realtor}"
+    sanitized_application = application.model_copy(
+        update={"status": SubmissionStatus.SUBMITTED}
     )
-    return application
+    repos.applications.add(sanitized_application)
+    repos.notifications.append(
+        f"Property application {sanitized_application.id} submitted by {sanitized_application.realtor}"
+    )
+    return sanitized_application
 
 
 @app.get("/property-applications/{app_id}", response_model=PropertyApplication)
@@ -855,11 +863,19 @@ def submit_account_opening(
         raise HTTPException(status_code=400, detail="Request ID exists")
     if agent.username != request.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
-    repos.account_openings.add(request)
-    repos.notifications.append(
-        f"Account opening {request.id} submitted by {request.realtor}"
+    sanitized_request = request.model_copy(
+        update={
+            "status": SubmissionStatus.SUBMITTED,
+            "account_number": None,
+            "deposit_threshold": None,
+            "deposits": [],
+        }
     )
-    return request
+    repos.account_openings.add(sanitized_request)
+    repos.notifications.append(
+        f"Account opening {sanitized_request.id} submitted by {sanitized_request.realtor}"
+    )
+    return sanitized_request
 
 
 @app.get("/account-openings", response_model=List[AccountOpening])
@@ -1014,11 +1030,19 @@ def submit_loan_application(
         raise HTTPException(status_code=400, detail="Documentation required")
     if application.property_id and not repos.stands.get(application.property_id):
         raise HTTPException(status_code=404, detail="Property not found")
-    repos.loan_applications.add(application)
-    repos.notifications.append(
-        f"Loan application {application.id} submitted by {application.realtor}"
+    sanitized_application = application.model_copy(
+        update={
+            "status": SubmissionStatus.SUBMITTED,
+            "decision": None,
+            "reason": None,
+            "loan_account_number": None,
+        }
     )
-    return application
+    repos.loan_applications.add(sanitized_application)
+    repos.notifications.append(
+        f"Loan application {sanitized_application.id} submitted by {sanitized_application.realtor}"
+    )
+    return sanitized_application
 
 
 @app.get("/loan-applications/{app_id}", response_model=LoanApplication)
@@ -1094,8 +1118,9 @@ def submit_loan(
         raise HTTPException(status_code=400, detail="Loan ID exists")
     if agent.username != loan.borrower:
         raise HTTPException(status_code=403, detail="Cannot submit for another borrower")
-    repos.loans.add(loan)
-    return loan
+    sanitized_loan = loan.model_copy(update={"status": LoanStatus.SUBMITTED, "reason": None})
+    repos.loans.add(sanitized_loan)
+    return sanitized_loan
 
 
 @app.get("/loans/pending", response_model=List[Loan])

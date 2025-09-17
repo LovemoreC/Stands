@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append('.')
 
 from app.database import drop_db, init_db
@@ -61,3 +62,26 @@ def test_loan_flow(client):
     assert resp.status_code == 200
     assert resp.json()["status"] == LoanStatus.REJECTED.value
     assert resp.json()["reason"] == "No credit"
+
+
+def test_loan_submission_privileged_fields_are_sanitized(client):
+    tokens = setup_agents(client)
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    user_headers = {"Authorization": f"Bearer {tokens['user']}"}
+
+    loan_payload = {
+        "id": 77,
+        "borrower": "user",
+        "amount": 5000,
+        "status": LoanStatus.APPROVED.value,
+        "reason": "sensitive",
+    }
+    resp = client.post("/loans", json=loan_payload, headers=user_headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == LoanStatus.SUBMITTED.value
+    assert resp.json()["reason"] is None
+
+    resp = client.get("/loans/pending", headers=admin_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data[0]["reason"] is None
