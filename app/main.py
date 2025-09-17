@@ -72,6 +72,7 @@ def resolve_frontend_origins() -> List[str]:
 
 
 SECRET_KEY = os.environ["SECRET_KEY"]
+INITIAL_ADMIN_TOKEN = os.environ["INITIAL_ADMIN_TOKEN"]
 
 FRONTEND_ORIGINS = resolve_frontend_origins()
 
@@ -192,14 +193,21 @@ async def log_request(request: Request, call_next):
 def create_agent(
     agent: AgentCreate,
     authorization: str = Header(None),
+    bootstrap_token: str | None = Header(None, alias="X-Bootstrap-Token"),
     repos: Repositories = Depends(get_repositories),
 ):
-    if repos.agents.list():
+    existing_agents = repos.agents.list()
+    if existing_agents:
         if not authorization:
             raise HTTPException(status_code=401, detail="Missing authentication token")
         current = get_current_agent(authorization=authorization, repos=repos)
         if current.role != AgentRole.ADMIN:
             raise HTTPException(status_code=403, detail="Admin privileges required")
+    else:
+        if not bootstrap_token:
+            raise HTTPException(status_code=401, detail="Missing bootstrap token")
+        if not hmac.compare_digest(bootstrap_token, INITIAL_ADMIN_TOKEN):
+            raise HTTPException(status_code=403, detail="Invalid bootstrap token")
     if repos.agents.get(agent.username):
         raise HTTPException(status_code=400, detail="Agent exists")
     if agent.role not in AgentRole:

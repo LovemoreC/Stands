@@ -10,7 +10,8 @@ basic status tracking and notification storage.
 pip install -r requirements.txt
 ```
 
-Create a `.env` file based on `.env.example` and set a strong value for `SECRET_KEY`.
+Create a `.env` file based on `.env.example` and set strong values for both `SECRET_KEY` and
+`INITIAL_ADMIN_TOKEN`.
 
 ```bash
 cp .env.example .env
@@ -21,6 +22,7 @@ cp .env.example .env
 
 ```
 SECRET_KEY=your-secret-key \
+INITIAL_ADMIN_TOKEN=bootstrap-token \
 FRONTEND_ORIGINS="http://localhost:5173" \
 uvicorn app.main:app --reload
 ```
@@ -76,10 +78,12 @@ The frontend image is built with `VITE_API_BASE=http://web:8000`, which points A
 
 ## Authentication
 
-Agents are created with a password hash:
+Agents are created with a password hash. The first administrator must be created with the bootstrap
+token so that deployments start with a known secret:
 
 ```
 POST /agents {"username": "alice", "role": "admin", "password": "secret"}
+X-Bootstrap-Token: <INITIAL_ADMIN_TOKEN>
 ```
 
 Log in to receive a JWT and use it in the `Authorization` header:
