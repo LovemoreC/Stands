@@ -11,6 +11,7 @@ import AccountOpeningDetail from './pages/AccountOpeningDetail';
 import LoanApplications from './pages/LoanApplications';
 import LoanApprovals from './pages/LoanApprovals';
 import AdminDashboard from './pages/AdminDashboard';
+import AgentsPage from './pages/Agents';
 import ComplianceDashboard from './pages/ComplianceDashboard';
 import Deposits from './pages/Deposits';
 import DepositDetail from './pages/DepositDetail';
@@ -29,6 +30,7 @@ const App: React.FC = () => {
               <Link to="/projects">Projects</Link> |{' '}
               <Link to="/stands">Stands</Link> |{' '}
               <Link to="/mandates">Mandates</Link> |{' '}
+              <Link to="/agents">Agents</Link> |{' '}
               <Link to="/account-openings">Account Openings</Link> |{' '}
               <Link to="/loan-applications">Loan Applications</Link> |{' '}
               <Link to="/loan-approvals">Loan Approvals</Link> |{' '}
@@ -57,6 +59,14 @@ const App: React.FC = () => {
       )}
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route
+          path="/agents"
+          element={
+            <ProtectedRoute roles={["admin"]}>
+              <AgentsPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/projects"
           element={
