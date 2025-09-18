@@ -58,6 +58,8 @@ POST /import/properties
 The file must contain the columns `project_id`, `project_name`, `stand_id`, `stand_name`, `size`, and `price`.
 Rows missing required fields are reported with clear error messages and skipped.
 
+**Manual verification:** Uploading a file that contains at least one invalid row now displays the backend-provided error text in the dashboard import form.
+
 ## Docker Compose
 
 To build and run the API and dashboard together with Docker Compose:
