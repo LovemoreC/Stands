@@ -7,6 +7,8 @@ export interface Project {
   description?: string;
 }
 
+export type ProjectCreate = Omit<Project, 'id'>;
+
 export interface Stand {
   id: number;
   project_id: number;
@@ -16,11 +18,13 @@ export interface Stand {
   status?: string;
 }
 
+export type StandCreate = Omit<Stand, 'id'>;
+
 export async function listProjects(): Promise<Project[]> {
   return apiFetch('/projects');
 }
 
-export async function createProject(project: Project): Promise<Project> {
+export async function createProject(project: ProjectCreate): Promise<Project> {
   return apiFetch('/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -57,7 +61,7 @@ export async function listStands(projectId: number): Promise<Stand[]> {
 
 export async function createStand(
   projectId: number,
-  stand: Stand,
+  stand: StandCreate,
 ): Promise<Stand> {
   return apiFetch(`/projects/${projectId}/stands`, {
     method: 'POST',

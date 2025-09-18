@@ -26,7 +26,9 @@ from .reporting import (
 )
 from .models import (
     Project,
+    ProjectCreate,
     Stand,
+    StandCreate,
     PropertyStatus,
     Mandate,
     MandateRecord,
@@ -248,7 +250,7 @@ def login(data: LoginRequest, repos: Repositories = Depends(get_repositories)):
 
 @app.post("/projects", response_model=Project)
 def create_project(
-    project: Project,
+    project: ProjectCreate,
     _: Agent = Depends(require_admin),
     service: ProjectsService = Depends(get_projects_service),
 ):
@@ -294,7 +296,7 @@ def list_project_stands(
 @app.post("/projects/{project_id}/stands", response_model=Stand)
 def create_project_stand(
     project_id: int,
-    stand: Stand,
+    stand: StandCreate,
     _: Agent = Depends(require_admin),
     service: ProjectsService = Depends(get_projects_service),
 ):
@@ -324,7 +326,7 @@ def delete_project_stand(
 
 @app.post("/stands", response_model=Stand)
 def create_stand(
-    stand: Stand,
+    stand: StandCreate,
     _: Agent = Depends(require_admin),
     service: ProjectsService = Depends(get_projects_service),
 ):

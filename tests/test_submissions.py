@@ -10,7 +10,9 @@ def setup_agents(client):
     drop_db()
     init_db()
     client.post(
-        "/agents", json={"username": "admin", "role": "admin", "password": "a"}
+        "/agents",
+        json={"username": "admin", "role": "admin", "password": "a"},
+        headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     admin_token = client.post(
         "/auth/login", json={"username": "admin", "password": "a"}
@@ -375,12 +377,14 @@ def test_loan_application_queue_listing_and_agreement_generation(client):
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
-    client.post("/projects", json={"id": 1, "name": "P"}, headers=admin_headers)
-    client.post(
+    project_id = client.post(
+        "/projects", json={"name": "P"}, headers=admin_headers
+    ).json()["id"]
+    stand_id = client.post(
         "/stands",
-        json={"id": 1, "project_id": 1, "name": "S", "size": 100, "price": 1000},
+        json={"project_id": project_id, "name": "S", "size": 100, "price": 1000},
         headers=admin_headers,
-    )
+    ).json()["id"]
 
     client.post(
         "/account-openings",
@@ -403,7 +407,7 @@ def test_loan_application_queue_listing_and_agreement_generation(client):
         "realtor": "realtor",
         "account_id": 1,
         "documents": ["doc"],
-        "property_id": 1,
+        "property_id": stand_id,
     }
     client.post("/loan-applications", json=loan_app, headers=realtor_headers)
 

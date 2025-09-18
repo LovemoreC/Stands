@@ -12,7 +12,9 @@ def admin_headers(client):
     drop_db()
     init_db()
     client.post(
-        "/agents", json={"username": "admin", "role": "admin", "password": "a"}
+        "/agents",
+        json={"username": "admin", "role": "admin", "password": "a"},
+        headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     token = client.post(
         "/auth/login", json={"username": "admin", "password": "a"}

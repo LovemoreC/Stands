@@ -9,10 +9,11 @@ def setup_data(client):
     reset_state()
 
     def create_and_login(username, role, headers=None):
+        create_headers = headers or {"X-Bootstrap-Token": "bootstrap-token"}
         client.post(
             "/agents",
             json={"username": username, "role": role, "password": username},
-            headers=headers,
+            headers=create_headers,
         )
         token = client.post(
             "/auth/login", json={"username": username, "password": username}
@@ -23,12 +24,14 @@ def setup_data(client):
     realtor_headers = create_and_login("realtor", "agent", admin_headers)
     intruder_headers = create_and_login("intruder", "agent", admin_headers)
 
-    client.post("/projects", json={"id": 1, "name": "Proj"}, headers=admin_headers)
-    client.post(
+    project_id = client.post(
+        "/projects", json={"name": "Proj"}, headers=admin_headers
+    ).json()["id"]
+    stand_id = client.post(
         "/stands",
-        json={"id": 1, "project_id": 1, "name": "Stand1", "size": 100, "price": 1000},
+        json={"project_id": project_id, "name": "Stand1", "size": 100, "price": 1000},
         headers=admin_headers,
-    )
+    ).json()["id"]
 
     client.post(
         "/account-openings",
@@ -50,7 +53,13 @@ def setup_data(client):
         json={"id": 1, "realtor": "realtor", "account_id": 1, "documents": ["doc"]},
         headers=realtor_headers,
     )
-    return admin_headers, realtor_headers, intruder_headers
+    return {
+        "admin_headers": admin_headers,
+        "realtor_headers": realtor_headers,
+        "intruder_headers": intruder_headers,
+        "project_id": project_id,
+        "stand_id": stand_id,
+    }
 
 
 def reset_state():
@@ -59,42 +68,46 @@ def reset_state():
 
 
 def test_agreement_flow(client):
-    admin_headers, realtor_headers, intruder_headers = setup_data(client)
+    ctx = setup_data(client)
 
     resp = client.post(
         "/agreements",
-        json={"id": 1, "loan_application_id": 1, "property_id": 1},
-        headers=admin_headers,
+        json={
+            "id": 1,
+            "loan_application_id": 1,
+            "property_id": ctx["stand_id"],
+        },
+        headers=ctx["admin_headers"],
     )
     assert resp.status_code == 200
     data = resp.json()
     assert "Stand1" in data["document"]
     assert data["status"] == "draft"
 
-    resp = client.get("/agreements/1", headers=intruder_headers)
+    resp = client.get("/agreements/1", headers=ctx["intruder_headers"])
     assert resp.status_code == 403
 
-    resp = client.get("/agreements/1", headers=realtor_headers)
+    resp = client.get("/agreements/1", headers=ctx["realtor_headers"])
     assert resp.status_code == 200
 
-    resp = client.get("/agreements/1", headers=admin_headers)
+    resp = client.get("/agreements/1", headers=ctx["admin_headers"])
     assert resp.status_code == 200
 
-    resp = client.get("/agreements/1/document", headers=admin_headers)
+    resp = client.get("/agreements/1/document", headers=ctx["admin_headers"])
     assert resp.status_code == 200
     assert "Stand1" in resp.text
 
     resp = client.post(
         "/agreements/1/sign",
         json={"document_url": "url_intruder"},
-        headers=intruder_headers,
+        headers=ctx["intruder_headers"],
     )
     assert resp.status_code == 403
 
     resp = client.post(
         "/agreements/1/sign",
         json={"document_url": "url_customer"},
-        headers=realtor_headers,
+        headers=ctx["realtor_headers"],
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -104,27 +117,27 @@ def test_agreement_flow(client):
     resp = client.post(
         "/agreements/1/sign",
         json={"document_url": "url_bank"},
-        headers=admin_headers,
+        headers=ctx["admin_headers"],
     )
     assert resp.status_code == 200
     data = resp.json()
     assert data["bank_document_url"] == "url_bank"
     assert data["status"] == "signed"
 
-    notes_resp = client.get("/notifications", headers=admin_headers)
+    notes_resp = client.get("/notifications", headers=ctx["admin_headers"])
     assert any("Loan Accounts Opening Team" in n for n in notes_resp.json())
 
     resp = client.post(
         "/agreements/1/upload",
         json={"document": "Intrusion"},
-        headers=intruder_headers,
+        headers=ctx["intruder_headers"],
     )
     assert resp.status_code == 403
 
     resp = client.post(
         "/agreements/1/upload",
         json={"document": "Updated by Realtor"},
-        headers=realtor_headers,
+        headers=ctx["realtor_headers"],
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -134,7 +147,7 @@ def test_agreement_flow(client):
     resp = client.post(
         "/agreements/1/upload",
         json={"document": "Updated by Admin"},
-        headers=admin_headers,
+        headers=ctx["admin_headers"],
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -145,28 +158,30 @@ def test_agreement_flow(client):
     resp = client.post(
         "/loan-accounts",
         json={"agreement_id": 1},
-        headers=admin_headers,
+        headers=ctx["admin_headers"],
     )
     assert resp.status_code == 200
     account_number = resp.json()["account_number"]
-    stand_resp = client.get("/stands/1", headers=admin_headers)
+    stand_resp = client.get(f"/stands/{ctx['stand_id']}", headers=ctx["admin_headers"])
     assert stand_resp.json()["status"] == PropertyStatus.SOLD.value
-    loan_resp = client.get("/loan-applications/1", headers=realtor_headers)
+    loan_resp = client.get("/loan-applications/1", headers=ctx["realtor_headers"])
     assert loan_resp.json()["loan_account_number"] == account_number
-    acct_resp = client.get("/loan-accounts/realtor", headers=admin_headers)
+    acct_resp = client.get(
+        "/loan-accounts/realtor", headers=ctx["admin_headers"]
+    )
     assert acct_resp.json() == [account_number]
 
     resp = client.put(
-        "/stands/1",
+        f"/stands/{ctx['stand_id']}",
         json={
-            "id": 1,
-            "project_id": 1,
+            "id": ctx["stand_id"],
+            "project_id": ctx["project_id"],
             "name": "New",
             "status": "available",
             "size": 100,
             "price": 1000,
         },
-        headers=admin_headers,
+        headers=ctx["admin_headers"],
     )
     assert resp.status_code == 400
     reset_state()

@@ -1,6 +1,6 @@
 from typing import List
 from fastapi import HTTPException
-from .models import Project, Stand, PropertyStatus
+from .models import Project, ProjectCreate, Stand, StandCreate, PropertyStatus
 from .repositories import Repositories
 
 
@@ -14,11 +14,25 @@ class ProjectsService:
     def list_projects(self) -> List[Project]:
         return self.repos.projects.list()
 
-    def create_project(self, project: Project) -> Project:
-        if self.repos.projects.get(project.id):
-            raise HTTPException(status_code=400, detail="Project ID exists")
-        self.repos.projects.add(project)
-        return project
+    def _allocate_project_id(self) -> int:
+        next_id = self.repos.counters.get("next_project_id")
+        if next_id is None:
+            next_id = max((p.id for p in self.repos.projects.list()), default=0) + 1
+        self.repos.counters.set("next_project_id", next_id + 1)
+        return next_id
+
+    def _allocate_stand_id(self) -> int:
+        next_id = self.repos.counters.get("next_stand_id")
+        if next_id is None:
+            next_id = max((s.id for s in self.repos.stands.list()), default=0) + 1
+        self.repos.counters.set("next_stand_id", next_id + 1)
+        return next_id
+
+    def create_project(self, project: ProjectCreate) -> Project:
+        project_id = self._allocate_project_id()
+        project_record = Project(id=project_id, **project.model_dump())
+        self.repos.projects.add(project_record)
+        return project_record
 
     def update_project(self, project_id: int, project: Project) -> Project:
         existing = self.repos.projects.get(project_id)
@@ -48,15 +62,15 @@ class ProjectsService:
             raise HTTPException(status_code=404, detail="Project not found")
         return [s for s in self.repos.stands.list() if s.project_id == project_id]
 
-    def create_stand(self, project_id: int, stand: Stand) -> Stand:
+    def create_stand(self, project_id: int, stand: StandCreate) -> Stand:
         if not self.repos.projects.get(project_id):
             raise HTTPException(status_code=404, detail="Project not found")
-        if self.repos.stands.get(stand.id):
-            raise HTTPException(status_code=400, detail="Stand ID exists")
         if stand.project_id != project_id:
             raise HTTPException(status_code=400, detail="Project mismatch")
-        self.repos.stands.add(stand)
-        return stand
+        stand_id = self._allocate_stand_id()
+        stand_record = Stand(id=stand_id, **stand.model_dump())
+        self.repos.stands.add(stand_record)
+        return stand_record
 
     def update_stand(self, project_id: int, stand_id: int, stand: Stand) -> Stand:
         if not self.repos.projects.get(project_id):

@@ -13,6 +13,7 @@ def auth_headers(client, username: str):
     client.post(
         "/agents",
         json={"username": username, "role": "admin", "password": username},
+        headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     token = client.post(
         "/auth/login", json={"username": username, "password": username}
@@ -24,56 +25,74 @@ def test_project_and_stand_crud(client):
     headers = auth_headers(client, "admin")
 
     # create project
-    project = {"id": 1, "name": "P"}
+    project = {"name": "P"}
     resp = client.post("/projects", json=project, headers=headers)
     assert resp.status_code == 200
+    project_id = resp.json()["id"]
+    assert isinstance(project_id, int)
 
     # update project
-    project_update = {"id": 1, "name": "P2"}
-    resp = client.put("/projects/1", json=project_update, headers=headers)
+    project_update = {"id": project_id, "name": "P2"}
+    resp = client.put(f"/projects/{project_id}", json=project_update, headers=headers)
     assert resp.status_code == 200
     assert resp.json()["name"] == "P2"
 
     # create stand under project
-    stand = {"id": 10, "project_id": 1, "name": "S", "size": 10, "price": 100}
-    resp = client.post("/projects/1/stands", json=stand, headers=headers)
+    stand = {"project_id": project_id, "name": "S", "size": 10, "price": 100}
+    resp = client.post(f"/projects/{project_id}/stands", json=stand, headers=headers)
     assert resp.status_code == 200
+    stand_id = resp.json()["id"]
+    assert isinstance(stand_id, int)
 
     # list stands
-    resp = client.get("/projects/1/stands", headers=headers)
+    resp = client.get(f"/projects/{project_id}/stands", headers=headers)
     assert resp.status_code == 200
     assert len(resp.json()) == 1
 
     # update stand
-    stand_update = {"id": 10, "project_id": 1, "name": "S2", "size": 10, "price": 100}
-    resp = client.put("/projects/1/stands/10", json=stand_update, headers=headers)
+    stand_update = {
+        "id": stand_id,
+        "project_id": project_id,
+        "name": "S2",
+        "size": 10,
+        "price": 100,
+    }
+    resp = client.put(
+        f"/projects/{project_id}/stands/{stand_id}",
+        json=stand_update,
+        headers=headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["name"] == "S2"
 
     # delete stand
-    resp = client.delete("/projects/1/stands/10", headers=headers)
+    resp = client.delete(
+        f"/projects/{project_id}/stands/{stand_id}", headers=headers
+    )
     assert resp.status_code == 200
 
     # delete project
-    resp = client.delete("/projects/1", headers=headers)
+    resp = client.delete(f"/projects/{project_id}", headers=headers)
     assert resp.status_code == 200
 
 
 def test_delete_project_with_existing_stands_rejected(client):
     headers = auth_headers(client, "admin")
 
-    project = {"id": 1, "name": "P"}
+    project = {"name": "P"}
     resp = client.post("/projects", json=project, headers=headers)
     assert resp.status_code == 200
+    project_id = resp.json()["id"]
 
-    stand = {"id": 10, "project_id": 1, "name": "S", "size": 10, "price": 100}
-    resp = client.post("/projects/1/stands", json=stand, headers=headers)
+    stand = {"project_id": project_id, "name": "S", "size": 10, "price": 100}
+    resp = client.post(f"/projects/{project_id}/stands", json=stand, headers=headers)
     assert resp.status_code == 200
+    stand_id = resp.json()["id"]
 
-    resp = client.delete("/projects/1", headers=headers)
+    resp = client.delete(f"/projects/{project_id}", headers=headers)
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Cannot delete project with existing stands"
 
-    resp = client.get("/projects/1/stands", headers=headers)
+    resp = client.get(f"/projects/{project_id}/stands", headers=headers)
     assert resp.status_code == 200
     assert len(resp.json()) == 1
