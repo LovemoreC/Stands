@@ -18,11 +18,27 @@ export function LoginForm({ onLogin }: { onLogin?: () => void }) {
   };
 
   return (
-    <form onSubmit={submit}>
-      <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" />
-      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
-      <button type="submit">Login</button>
-      {error && <p>{error}</p>}
-    </form>
+    <section className="form-section">
+      <form className="form-card" onSubmit={submit}>
+        <h2 className="form-title">Sign in</h2>
+        <div className="form-fields">
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+          />
+        </div>
+        <div className="form-actions">
+          <button type="submit">Login</button>
+        </div>
+        {error && <p className="form-message form-message--error">{error}</p>}
+      </form>
+    </section>
   );
 }
