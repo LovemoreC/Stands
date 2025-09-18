@@ -21,7 +21,11 @@ const defaultFormState: AgentFormState = {
   role: 'agent',
 };
 
-const AgentManagement: React.FC = () => {
+interface AgentManagementProps {
+  className?: string;
+}
+
+const AgentManagement: React.FC<AgentManagementProps> = ({ className }) => {
   const { auth } = useAuth();
   const role = auth?.role;
   const token = auth?.token;
@@ -109,14 +113,15 @@ const AgentManagement: React.FC = () => {
   };
 
   return (
-    <div>
-      <section>
-        <h3>Create Agent</h3>
-        <form onSubmit={handleSubmit}>
-          <div>
-            <label>
+    <div className={className}>
+      <section className="form-section">
+        <form className="form-card" onSubmit={handleSubmit}>
+          <h3 className="form-title">Create Agent</h3>
+          <div className="form-fields">
+            <label htmlFor="agent-username">
               Username
               <input
+                id="agent-username"
                 name="username"
                 value={form.username}
                 onChange={handleChange}
@@ -124,11 +129,10 @@ const AgentManagement: React.FC = () => {
                 required
               />
             </label>
-          </div>
-          <div>
-            <label>
+            <label htmlFor="agent-password">
               Password
               <input
+                id="agent-password"
                 type="password"
                 name="password"
                 value={form.password}
@@ -137,11 +141,10 @@ const AgentManagement: React.FC = () => {
                 required
               />
             </label>
-          </div>
-          <div>
-            <label>
+            <label htmlFor="agent-role">
               Role
               <select
+                id="agent-role"
                 name="role"
                 value={form.role}
                 onChange={handleChange}
@@ -155,34 +158,45 @@ const AgentManagement: React.FC = () => {
               </select>
             </label>
           </div>
-          <button type="submit" disabled={creating}>
-            {creating ? 'Creating…' : 'Create Agent'}
-          </button>
+          {error && <p className="form-message form-message--error">{error}</p>}
+          <div className="form-actions">
+            <button type="submit" disabled={creating}>
+              {creating ? 'Creating…' : 'Create Agent'}
+            </button>
+          </div>
         </form>
       </section>
-      <section>
-        <h3>Existing Agents</h3>
-        {loading && <p>Loading agents…</p>}
-        {error && <p>{error}</p>}
-        {!loading && !agents.length && !error && <p>No agents found.</p>}
-        {agents.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Role</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agents.map((agent) => (
-                <tr key={agent.username}>
-                  <td>{agent.username}</td>
-                  <td>{agent.role}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      <section className="form-section">
+        <div className="form-card">
+          <h3 className="form-title">Existing Agents</h3>
+          {loading && <p className="form-message form-message--info">Loading agents…</p>}
+          {error && !loading && !agents.length && (
+            <p className="form-message form-message--error">{error}</p>
+          )}
+          {!loading && !agents.length && !error && (
+            <p className="form-message">No agents found.</p>
+          )}
+          {agents.length > 0 && (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead className="data-table__header">
+                  <tr>
+                    <th scope="col">Username</th>
+                    <th scope="col">Role</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agents.map((agent) => (
+                    <tr key={agent.username}>
+                      <td>{agent.username}</td>
+                      <td>{agent.role}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

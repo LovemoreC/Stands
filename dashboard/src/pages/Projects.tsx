@@ -45,48 +45,80 @@ const Projects: React.FC = () => {
     <div>
       <h2>Projects</h2>
       {auth?.role === 'admin' && (
-        <section>
-          <h3>Import Properties</h3>
-          <p>Select a CSV or Excel file to upload new property records.</p>
-          <PropertyImportForm />
+        <section className="form-section">
+          <PropertyImportForm
+            className="form-card"
+            fieldsClassName="form-fields"
+            actionsClassName="form-actions"
+          >
+            <h3 className="form-title">Import Properties</h3>
+            <p>Select a CSV or Excel file to upload new property records.</p>
+          </PropertyImportForm>
         </section>
       )}
-      <form onSubmit={submit}>
-        <input
-          placeholder="ID"
-          value={form.id}
-          onChange={e => setForm({ ...form, id: e.target.value })}
-          required
-        />
-        <input
-          placeholder="Name"
-          value={form.name}
-          onChange={e => setForm({ ...form, name: e.target.value })}
-          required
-        />
-        <button type="submit">Add</button>
-      </form>
-      <input
-        placeholder="Search"
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map(p => (
-            <tr key={p.id}>
-              <td>{p.id}</td>
-              <td>{p.name}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <section className="form-section">
+        <form className="form-card" onSubmit={submit}>
+          <h3 className="form-title">Add Project</h3>
+          <div className="form-fields">
+            <label htmlFor="project-id">
+              Project ID
+              <input
+                id="project-id"
+                placeholder="e.g. 1001"
+                value={form.id}
+                onChange={e => setForm({ ...form, id: e.target.value })}
+                required
+              />
+            </label>
+            <label htmlFor="project-name">
+              Name
+              <input
+                id="project-name"
+                placeholder="Enter project name"
+                value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </label>
+          </div>
+          <div className="form-actions">
+            <button type="submit">Add Project</button>
+          </div>
+        </form>
+      </section>
+      <section className="form-section">
+        <div className="form-card">
+          <div className="form-fields">
+            <label htmlFor="project-search">
+              Search Projects
+              <input
+                id="project-search"
+                placeholder="Filter by name"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead className="data-table__header">
+                <tr>
+                  <th scope="col">ID</th>
+                  <th scope="col">Name</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(p => (
+                  <tr key={p.id}>
+                    <td>{p.id}</td>
+                    <td>{p.name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

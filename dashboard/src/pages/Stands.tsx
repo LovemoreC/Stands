@@ -76,46 +76,124 @@ const Stands: React.FC = () => {
   return (
     <div>
       <h2>Stands</h2>
-      <input
-        placeholder="Project ID"
-        value={projectFilter}
-        onChange={e => setProjectFilter(e.target.value)}
-      />
-      <form onSubmit={submit}>
-        <input placeholder="ID" value={form.id} onChange={e => setForm({ ...form, id: e.target.value })} required />
-        <input placeholder="Project ID" value={form.project_id} onChange={e => setForm({ ...form, project_id: e.target.value })} required />
-        <input placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-        <input placeholder="Size" value={form.size} onChange={e => setForm({ ...form, size: e.target.value })} required />
-        <input placeholder="Price" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required />
-        <button type="submit">Add</button>
-      </form>
-      <input placeholder="Search" value={search} onChange={e => setSearch(e.target.value)} />
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Project</th>
-            <th>Size</th>
-            <th>Price</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map(s => (
-            <tr key={s.id}>
-              <td>{s.id}</td>
-              <td>{s.name}</td>
-              <td>{s.project_id}</td>
-              <td>{s.size}</td>
-              <td>{s.price}</td>
-              <td>
-                <button onClick={() => remove(s.id)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <section className="form-section">
+        <div className="form-card">
+          <div className="form-fields">
+            <label htmlFor="stands-project-filter">
+              Filter by Project ID
+              <input
+                id="stands-project-filter"
+                placeholder="Enter project ID"
+                value={projectFilter}
+                onChange={e => setProjectFilter(e.target.value)}
+              />
+            </label>
+            <label htmlFor="stands-search">
+              Search by Name
+              <input
+                id="stands-search"
+                placeholder="Search stands"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+      </section>
+      <section className="form-section">
+        <form className="form-card" onSubmit={submit}>
+          <h3 className="form-title">Add Stand</h3>
+          <div className="form-fields">
+            <label htmlFor="stand-id">
+              Stand ID
+              <input
+                id="stand-id"
+                placeholder="ID"
+                value={form.id}
+                onChange={e => setForm({ ...form, id: e.target.value })}
+                required
+              />
+            </label>
+            <label htmlFor="stand-project-id">
+              Project ID
+              <input
+                id="stand-project-id"
+                placeholder="Project ID"
+                value={form.project_id}
+                onChange={e => setForm({ ...form, project_id: e.target.value })}
+                required
+              />
+            </label>
+            <label htmlFor="stand-name">
+              Name
+              <input
+                id="stand-name"
+                placeholder="Name"
+                value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </label>
+            <label htmlFor="stand-size">
+              Size
+              <input
+                id="stand-size"
+                placeholder="Size"
+                value={form.size}
+                onChange={e => setForm({ ...form, size: e.target.value })}
+                required
+              />
+            </label>
+            <label htmlFor="stand-price">
+              Price
+              <input
+                id="stand-price"
+                placeholder="Price"
+                value={form.price}
+                onChange={e => setForm({ ...form, price: e.target.value })}
+                required
+              />
+            </label>
+          </div>
+          <div className="form-actions">
+            <button type="submit">Add Stand</button>
+          </div>
+        </form>
+      </section>
+      <section className="form-section">
+        <div className="form-card">
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead className="data-table__header">
+                <tr>
+                  <th scope="col">ID</th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Project</th>
+                  <th scope="col">Size</th>
+                  <th scope="col">Price</th>
+                  <th scope="col" aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(s => (
+                  <tr key={s.id}>
+                    <td>{s.id}</td>
+                    <td>{s.name}</td>
+                    <td>{s.project_id}</td>
+                    <td>{s.size}</td>
+                    <td>{s.price}</td>
+                    <td className="data-table__actions">
+                      <button type="button" onClick={() => remove(s.id)}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

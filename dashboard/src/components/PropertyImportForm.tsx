@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { importProperties, ImportPropertiesResult } from '../api';
 import { useAuth } from '../auth';
 
@@ -7,11 +7,17 @@ type Status = 'idle' | 'uploading' | 'success' | 'error';
 export interface PropertyImportFormProps {
   onImported?: (result: ImportPropertiesResult) => void;
   className?: string;
+  fieldsClassName?: string;
+  actionsClassName?: string;
+  children?: React.ReactNode;
 }
 
 const PropertyImportForm: React.FC<PropertyImportFormProps> = ({
   onImported,
   className,
+  fieldsClassName,
+  actionsClassName,
+  children,
 }) => {
   const { auth } = useAuth();
   const [file, setFile] = useState<File | null>(null);
@@ -19,6 +25,19 @@ const PropertyImportForm: React.FC<PropertyImportFormProps> = ({
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
+
+  const formClassName = useMemo(
+    () => ['form-card', className].filter(Boolean).join(' '),
+    [className],
+  );
+  const mergedFieldsClassName = useMemo(
+    () => ['form-fields', fieldsClassName].filter(Boolean).join(' '),
+    [fieldsClassName],
+  );
+  const mergedActionsClassName = useMemo(
+    () => ['form-actions', actionsClassName].filter(Boolean).join(' '),
+    [actionsClassName],
+  );
 
   const resetFeedback = () => {
     setStatus('idle');
@@ -77,28 +96,44 @@ const PropertyImportForm: React.FC<PropertyImportFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit} className={className}>
-      <label>
-        Upload property data
-        <input
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          onChange={onFileChange}
-          disabled={status === 'uploading'}
-        />
-      </label>
-      <button type="submit" disabled={status === 'uploading'}>
-        {status === 'uploading' ? 'Importing…' : 'Import Properties'}
-      </button>
-      {message && <p>{message}</p>}
-      {status === 'error' && error && <p>{error}</p>}
+    <form onSubmit={handleSubmit} className={formClassName}>
+      {children}
+      <div className={mergedFieldsClassName}>
+        <label htmlFor="property-import-file">
+          Upload property data
+          <input
+            id="property-import-file"
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={onFileChange}
+            disabled={status === 'uploading'}
+          />
+        </label>
+      </div>
+      {message && (
+        <p
+          className={['form-message', status === 'success' ? 'form-message--success' : 'form-message--info']
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {message}
+        </p>
+      )}
+      {status === 'error' && error && (
+        <p className="form-message form-message--error">{error}</p>
+      )}
       {errors.length > 0 && (
-        <ul>
+        <ul className="form-message form-message--error">
           {errors.map((item, index) => (
             <li key={index}>{item}</li>
           ))}
         </ul>
       )}
+      <div className={mergedActionsClassName}>
+        <button type="submit" disabled={status === 'uploading'}>
+          {status === 'uploading' ? 'Importing…' : 'Import Properties'}
+        </button>
+      </div>
     </form>
   );
 };

@@ -20,20 +20,32 @@ const LoanAccounts: React.FC = () => {
   };
 
   return (
-    <div>
-      <h2>Loan Account Opening</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="number"
-          value={agreementId}
-          onChange={e => setAgreementId(e.target.value)}
-          placeholder="Agreement ID"
-        />
-        <button type="submit">Open Account</button>
+    <section className="form-section">
+      <form className="form-card" onSubmit={handleSubmit}>
+        <h2 className="form-title">Loan Account Opening</h2>
+        <div className="form-fields">
+          <label htmlFor="loan-agreement-id">
+            Agreement ID
+            <input
+              id="loan-agreement-id"
+              type="number"
+              value={agreementId}
+              onChange={e => setAgreementId(e.target.value)}
+              placeholder="Enter agreement ID"
+            />
+          </label>
+        </div>
+        {accountNumber && (
+          <p className="form-message form-message--success">
+            Account Number: {accountNumber}
+          </p>
+        )}
+        {error && <p className="form-message form-message--error">{error}</p>}
+        <div className="form-actions">
+          <button type="submit">Open Account</button>
+        </div>
       </form>
-      {accountNumber && <p>Account Number: {accountNumber}</p>}
-      {error && <p>{error}</p>}
-    </div>
+    </section>
   );
 };
 
