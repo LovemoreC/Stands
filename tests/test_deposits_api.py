@@ -8,22 +8,24 @@ def setup_function(_):
     init_db()
 
 def register_users(client):
+    admin_password = "AdminPass123"
     client.post(
         "/agents",
-        json={"username": "admin", "role": "admin", "password": "admin"},
+        json={"username": "admin", "role": "admin", "password": admin_password},
         headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     admin_token = client.post(
-        "/auth/login", json={"username": "admin", "password": "admin"}
+        "/auth/login", json={"username": "admin", "password": admin_password}
     ).json()["token"]
     headers = {"Authorization": f"Bearer {admin_token}"}
+    agent_password = "AgentPass123"
     client.post(
         "/agents",
-        json={"username": "agent", "role": "agent", "password": "agent"},
+        json={"username": "agent", "role": "agent", "password": agent_password},
         headers=headers,
     )
     agent_token = client.post(
-        "/auth/login", json={"username": "agent", "password": "agent"}
+        "/auth/login", json={"username": "agent", "password": agent_password}
     ).json()["token"]
     return {"admin": admin_token, "agent": agent_token}
 

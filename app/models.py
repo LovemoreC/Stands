@@ -89,7 +89,7 @@ class Agent(BaseModel):
 
 
 class AgentCreate(Agent):
-    password: str
+    password: str = Field(..., min_length=8)
 
 
 class AgentInDB(Agent):

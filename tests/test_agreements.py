@@ -10,13 +10,14 @@ def setup_data(client):
 
     def create_and_login(username, role, headers=None):
         create_headers = headers or {"X-Bootstrap-Token": "bootstrap-token"}
+        password = f"{username}Pass123"
         client.post(
             "/agents",
-            json={"username": username, "role": role, "password": username},
+            json={"username": username, "role": role, "password": password},
             headers=create_headers,
         )
         token = client.post(
-            "/auth/login", json={"username": username, "password": username}
+            "/auth/login", json={"username": username, "password": password}
         ).json()["token"]
         return {"Authorization": f"Bearer {token}"}
 

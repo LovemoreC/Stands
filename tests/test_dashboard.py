@@ -16,26 +16,27 @@ def register_agents(client):
         "compliance": "compliance",
         "agentA": "agent",
     }
+    passwords = {user: f"{user}Pass123" for user in creds}
     tokens = {}
     # create first admin
     client.post(
         "/agents",
-        json={"username": "admin", "role": "admin", "password": "admin"},
+        json={"username": "admin", "role": "admin", "password": passwords["admin"]},
         headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     admin_token = client.post(
-        "/auth/login", json={"username": "admin", "password": "admin"}
+        "/auth/login", json={"username": "admin", "password": passwords["admin"]}
     ).json()["token"]
     tokens["admin"] = admin_token
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
     for user, role in list(creds.items())[1:]:
         client.post(
             "/agents",
-            json={"username": user, "role": role, "password": user},
+            json={"username": user, "role": role, "password": passwords[user]},
             headers=admin_headers,
         )
         token = client.post(
-            "/auth/login", json={"username": user, "password": user}
+            "/auth/login", json={"username": user, "password": passwords[user]}
         ).json()["token"]
         tokens[user] = token
     return tokens

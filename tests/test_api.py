@@ -12,24 +12,26 @@ def setup_function():
 
 def test_auth_mandate_and_available_view(client):
     # register agents
+    admin_password = "AdminPass123"
     resp = client.post(
         "/agents",
-        json={"username": "admin", "role": "admin", "password": "a"},
+        json={"username": "admin", "role": "admin", "password": admin_password},
         headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     assert resp.status_code == 200
     admin_token = client.post(
-        "/auth/login", json={"username": "admin", "password": "a"}
+        "/auth/login", json={"username": "admin", "password": admin_password}
     ).json()["token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    agent_password = "AgentPass123"
     resp = client.post(
         "/agents",
-        json={"username": "agentA", "role": "agent", "password": "b"},
+        json={"username": "agentA", "role": "agent", "password": agent_password},
         headers=admin_headers,
     )
     assert resp.status_code == 200
     agent_token = client.post(
-        "/auth/login", json={"username": "agentA", "password": "b"}
+        "/auth/login", json={"username": "agentA", "password": agent_password}
     ).json()["token"]
 
     agent_headers = {"Authorization": f"Bearer {agent_token}"}

@@ -9,22 +9,24 @@ from app.models import LoanStatus
 def setup_agents(client):
     drop_db()
     init_db()
+    admin_password = "AdminPass123"
     client.post(
         "/agents",
-        json={"username": "admin", "role": "admin", "password": "a"},
+        json={"username": "admin", "role": "admin", "password": admin_password},
         headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     admin_token = client.post(
-        "/auth/login", json={"username": "admin", "password": "a"}
+        "/auth/login", json={"username": "admin", "password": admin_password}
     ).json()["token"]
     headers = {"Authorization": f"Bearer {admin_token}"}
+    user_password = "UserPass123"
     client.post(
         "/agents",
-        json={"username": "user", "role": "agent", "password": "b"},
+        json={"username": "user", "role": "agent", "password": user_password},
         headers=headers,
     )
     user_token = client.post(
-        "/auth/login", json={"username": "user", "password": "b"}
+        "/auth/login", json={"username": "user", "password": user_password}
     ).json()["token"]
     return {"admin": admin_token, "user": user_token}
 

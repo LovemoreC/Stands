@@ -11,19 +11,25 @@ def setup_function():
 
 
 def setup_data(client):
+    admin_password = "AdminPass123"
     client.post(
         "/agents",
-        json={"username": "admin", "role": "admin", "password": "a"},
+        json={"username": "admin", "role": "admin", "password": admin_password},
         headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
-    admin_token = client.post("/auth/login", json={"username": "admin", "password": "a"}).json()["token"]
+    admin_token = client.post(
+        "/auth/login", json={"username": "admin", "password": admin_password}
+    ).json()["token"]
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    agent_password = "AgentPass123"
     client.post(
         "/agents",
-        json={"username": "agent", "role": "agent", "password": "b"},
+        json={"username": "agent", "role": "agent", "password": agent_password},
         headers=admin_headers,
     )
-    agent_token = client.post("/auth/login", json={"username": "agent", "password": "b"}).json()["token"]
+    agent_token = client.post(
+        "/auth/login", json={"username": "agent", "password": agent_password}
+    ).json()["token"]
     agent_headers = {"Authorization": f"Bearer {agent_token}"}
     project_id = client.post(
         "/projects", json={"name": "Proj"}, headers=admin_headers

@@ -11,13 +11,14 @@ from app.database import drop_db, init_db
 def admin_headers(client):
     drop_db()
     init_db()
+    admin_password = "AdminPass123"
     client.post(
         "/agents",
-        json={"username": "admin", "role": "admin", "password": "a"},
+        json={"username": "admin", "role": "admin", "password": admin_password},
         headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     token = client.post(
-        "/auth/login", json={"username": "admin", "password": "a"}
+        "/auth/login", json={"username": "admin", "password": admin_password}
     ).json()["token"]
     return {"Authorization": f"Bearer {token}"}
 
