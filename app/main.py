@@ -220,6 +220,14 @@ def create_agent(
     return Agent(username=agent.username, role=agent.role)
 
 
+@app.get("/agents", response_model=List[Agent])
+def list_agents(
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    return [Agent(username=agent.username, role=agent.role) for agent in repos.agents.list()]
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
