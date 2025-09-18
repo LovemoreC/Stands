@@ -10,13 +10,14 @@ def setup_function():
 
 
 def auth_headers(client, username: str):
+    password = f"{username}Pass123"
     client.post(
         "/agents",
-        json={"username": username, "role": "admin", "password": username},
+        json={"username": username, "role": "admin", "password": password},
         headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     token = client.post(
-        "/auth/login", json={"username": username, "password": username}
+        "/auth/login", json={"username": username, "password": password}
     ).json()["token"]
     return {"Authorization": f"Bearer {token}"}
 

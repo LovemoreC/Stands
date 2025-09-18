@@ -7,22 +7,24 @@ from app.database import drop_db, init_db
 def setup_agents(client):
     drop_db()
     init_db()
+    admin_password = "AdminPass123"
     client.post(
         "/agents",
-        json={"username": "admin", "role": "admin", "password": "a"},
+        json={"username": "admin", "role": "admin", "password": admin_password},
         headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     admin_token = client.post(
-        "/auth/login", json={"username": "admin", "password": "a"}
+        "/auth/login", json={"username": "admin", "password": admin_password}
     ).json()["token"]
     headers = {"Authorization": f"Bearer {admin_token}"}
+    realtor_password = "RealtorPass123"
     client.post(
         "/agents",
-        json={"username": "realtor", "role": "agent", "password": "b"},
+        json={"username": "realtor", "role": "agent", "password": realtor_password},
         headers=headers,
     )
     realtor_token = client.post(
-        "/auth/login", json={"username": "realtor", "password": "b"}
+        "/auth/login", json={"username": "realtor", "password": realtor_password}
     ).json()["token"]
     return {"admin": admin_token, "realtor": realtor_token}
 

@@ -214,6 +214,8 @@ def create_agent(
         raise HTTPException(status_code=400, detail="Agent exists")
     if agent.role not in AgentRole:
         raise HTTPException(status_code=400, detail="Unknown role")
+    if len(agent.password) < 8 or not agent.password.strip():
+        raise HTTPException(status_code=400, detail="Password does not meet requirements")
     password_hash = hash_password(agent.password)
     agent_db = AgentInDB(username=agent.username, role=agent.role, password_hash=password_hash)
     repos.agents.add(agent_db)
