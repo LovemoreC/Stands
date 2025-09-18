@@ -50,6 +50,7 @@ export async function deleteProject(id: number): Promise<Project> {
 export interface ImportPropertiesResult {
   message?: string;
   imported?: number;
+  errors?: string[];
 }
 
 export async function importProperties(file: File): Promise<ImportPropertiesResult> {
