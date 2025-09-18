@@ -38,19 +38,34 @@ export function OfferApplicationForm({
   };
 
   return (
-    <form onSubmit={submit}>
-      <input value={id} onChange={(e) => setId(e.target.value)} placeholder="ID" />
-      <input
-        value={propertyId}
-        onChange={(e) => setPropertyId(e.target.value)}
-        placeholder="Property ID"
-      />
-      <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-      <button type="submit">Submit Offer</button>
-      {status === 'uploading' && <p>Uploading...</p>}
-      {status === 'success' && <p>Uploaded!</p>}
-      {status === 'error' && <p>{error}</p>}
-    </form>
+    <section className="form-section">
+      <form className="form-card" onSubmit={submit}>
+        <h3 className="form-title">Submit offer application</h3>
+        <div className="form-fields">
+          <input value={id} onChange={(e) => setId(e.target.value)} placeholder="ID" />
+          <input
+            value={propertyId}
+            onChange={(e) => setPropertyId(e.target.value)}
+            placeholder="Property ID"
+          />
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        </div>
+        <div className="form-actions">
+          <button type="submit" disabled={status === 'uploading'}>
+            Submit Offer
+          </button>
+        </div>
+        {status === 'uploading' && (
+          <p className="form-message form-message--info">Uploading...</p>
+        )}
+        {status === 'success' && (
+          <p className="form-message form-message--success">Uploaded!</p>
+        )}
+        {status === 'error' && (
+          <p className="form-message form-message--error">{error}</p>
+        )}
+      </form>
+    </section>
   );
 }
 
@@ -85,19 +100,34 @@ export function PropertyApplicationForm({
   };
 
   return (
-    <form onSubmit={submit}>
-      <input value={id} onChange={(e) => setId(e.target.value)} placeholder="ID" />
-      <input
-        value={propertyId}
-        onChange={(e) => setPropertyId(e.target.value)}
-        placeholder="Property ID"
-      />
-      <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-      <button type="submit">Submit Property App</button>
-      {status === 'uploading' && <p>Uploading...</p>}
-      {status === 'success' && <p>Uploaded!</p>}
-      {status === 'error' && <p>{error}</p>}
-    </form>
+    <section className="form-section">
+      <form className="form-card" onSubmit={submit}>
+        <h3 className="form-title">Submit property application</h3>
+        <div className="form-fields">
+          <input value={id} onChange={(e) => setId(e.target.value)} placeholder="ID" />
+          <input
+            value={propertyId}
+            onChange={(e) => setPropertyId(e.target.value)}
+            placeholder="Property ID"
+          />
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        </div>
+        <div className="form-actions">
+          <button type="submit" disabled={status === 'uploading'}>
+            Submit Property App
+          </button>
+        </div>
+        {status === 'uploading' && (
+          <p className="form-message form-message--info">Uploading...</p>
+        )}
+        {status === 'success' && (
+          <p className="form-message form-message--success">Uploaded!</p>
+        )}
+        {status === 'error' && (
+          <p className="form-message form-message--error">{error}</p>
+        )}
+      </form>
+    </section>
   );
 }
 
@@ -130,13 +160,28 @@ export function AccountApplicationForm({
   };
 
   return (
-    <form onSubmit={submit}>
-      <input value={id} onChange={(e) => setId(e.target.value)} placeholder="ID" />
-      <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-      <button type="submit">Submit Account App</button>
-      {status === 'uploading' && <p>Uploading...</p>}
-      {status === 'success' && <p>Uploaded!</p>}
-      {status === 'error' && <p>{error}</p>}
-    </form>
+    <section className="form-section">
+      <form className="form-card" onSubmit={submit}>
+        <h3 className="form-title">Submit account application</h3>
+        <div className="form-fields">
+          <input value={id} onChange={(e) => setId(e.target.value)} placeholder="ID" />
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        </div>
+        <div className="form-actions">
+          <button type="submit" disabled={status === 'uploading'}>
+            Submit Account App
+          </button>
+        </div>
+        {status === 'uploading' && (
+          <p className="form-message form-message--info">Uploading...</p>
+        )}
+        {status === 'success' && (
+          <p className="form-message form-message--success">Uploaded!</p>
+        )}
+        {status === 'error' && (
+          <p className="form-message form-message--error">{error}</p>
+        )}
+      </form>
+    </section>
   );
 }
