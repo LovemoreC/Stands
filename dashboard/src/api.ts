@@ -54,7 +54,10 @@ export async function getProjects(token: string) {
   return res.json();
 }
 
-export async function createProject(token: string, project: { id: number; name: string }) {
+export async function createProject(
+  token: string,
+  project: { name: string; description?: string },
+) {
   const res = await fetch(apiUrl('/projects'), {
     method: 'POST',
     headers: headers(token),
@@ -120,7 +123,10 @@ export async function getStands(token: string) {
   return res.json();
 }
 
-export async function createStand(token: string, stand: { id: number; project_id: number; name: string; size: number; price: number }) {
+export async function createStand(
+  token: string,
+  stand: { project_id: number; name: string; size: number; price: number },
+) {
   const res = await fetch(apiUrl('/stands'), {
     method: 'POST',
     headers: headers(token),

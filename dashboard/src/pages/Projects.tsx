@@ -9,13 +9,14 @@ import {
 interface Project {
   id: number;
   name: string;
+  description?: string;
 }
 
 const Projects: React.FC = () => {
   const { auth } = useAuth();
   const [projects, setProjects] = React.useState<Project[]>([]);
   const [search, setSearch] = React.useState('');
-  const [form, setForm] = React.useState({ id: '', name: '' });
+  const [form, setForm] = React.useState({ name: '', description: '' });
 
   React.useEffect(() => {
     if (!auth?.token) {
@@ -31,11 +32,16 @@ const Projects: React.FC = () => {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.id || !form.name || !auth) return;
+    const name = form.name.trim();
+    const description = form.description.trim();
+    if (!name || !auth) return;
     try {
-      const project = await createProjectRequest(auth.token, { id: Number(form.id), name: form.name });
+      const project = await createProjectRequest(auth.token, {
+        name,
+        ...(description ? { description } : {}),
+      });
       setProjects(prev => [...prev, project]);
-      setForm({ id: '', name: '' });
+      setForm({ name: '', description: '' });
     } catch (err) {
       console.error(err);
     }
@@ -60,16 +66,6 @@ const Projects: React.FC = () => {
         <form className="form-card" onSubmit={submit}>
           <h3 className="form-title">Add Project</h3>
           <div className="form-fields">
-            <label htmlFor="project-id">
-              Project ID
-              <input
-                id="project-id"
-                placeholder="e.g. 1001"
-                value={form.id}
-                onChange={e => setForm({ ...form, id: e.target.value })}
-                required
-              />
-            </label>
             <label htmlFor="project-name">
               Name
               <input
@@ -78,6 +74,15 @@ const Projects: React.FC = () => {
                 value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 required
+              />
+            </label>
+            <label htmlFor="project-description">
+              Description (optional)
+              <input
+                id="project-description"
+                placeholder="Enter project description"
+                value={form.description}
+                onChange={e => setForm({ ...form, description: e.target.value })}
               />
             </label>
           </div>
