@@ -19,7 +19,7 @@ const Stands: React.FC = () => {
   const [projectFilter, setProjectFilter] = React.useState('');
   const [stands, setStands] = React.useState<Stand[]>([]);
   const [search, setSearch] = React.useState('');
-  const [form, setForm] = React.useState({ id: '', project_id: '', name: '', size: '', price: '' });
+  const [form, setForm] = React.useState({ project_id: '', name: '', size: '', price: '' });
 
   const projectIdFilter = projectFilter.trim();
 
@@ -46,7 +46,6 @@ const Stands: React.FC = () => {
     e.preventDefault();
     if (!auth) return;
     const payload = {
-      id: Number(form.id),
       project_id: Number(form.project_id),
       name: form.name,
       size: Number(form.size),
@@ -55,7 +54,7 @@ const Stands: React.FC = () => {
     try {
       const stand = await createStandRequest(auth.token, payload);
       setStands(prev => [...prev, stand]);
-      setForm({ id: '', project_id: '', name: '', size: '', price: '' });
+      setForm({ project_id: '', name: '', size: '', price: '' });
     } catch (err) {
       console.error(err);
     }
@@ -104,16 +103,6 @@ const Stands: React.FC = () => {
         <form className="form-card" onSubmit={submit}>
           <h3 className="form-title">Add Stand</h3>
           <div className="form-fields">
-            <label htmlFor="stand-id">
-              Stand ID
-              <input
-                id="stand-id"
-                placeholder="ID"
-                value={form.id}
-                onChange={e => setForm({ ...form, id: e.target.value })}
-                required
-              />
-            </label>
             <label htmlFor="stand-project-id">
               Project ID
               <input
