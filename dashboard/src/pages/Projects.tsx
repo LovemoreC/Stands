@@ -1,4 +1,5 @@
 import React from 'react';
+import PropertyImportForm from '../../../frontend/src/components/PropertyImportForm';
 import { useAuth } from '../auth';
 import {
   getProjects as fetchProjects,
@@ -43,6 +44,13 @@ const Projects: React.FC = () => {
   return (
     <div>
       <h2>Projects</h2>
+      {auth?.role === 'admin' && (
+        <section>
+          <h3>Import Properties</h3>
+          <p>Select a CSV or Excel file to upload new property records.</p>
+          <PropertyImportForm />
+        </section>
+      )}
       <form onSubmit={submit}>
         <input
           placeholder="ID"
