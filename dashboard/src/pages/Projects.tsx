@@ -1,5 +1,5 @@
 import React from 'react';
-import PropertyImportForm from '../../../frontend/src/components/PropertyImportForm';
+import PropertyImportForm from '../components/PropertyImportForm';
 import { useAuth } from '../auth';
 import {
   getProjects as fetchProjects,

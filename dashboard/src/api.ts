@@ -64,6 +64,56 @@ export async function createProject(token: string, project: { id: number; name: 
   return res.json();
 }
 
+export interface ImportPropertiesResult {
+  message?: string;
+  imported?: number;
+  errors?: string[];
+}
+
+export async function importProperties(token: string, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(apiUrl('/import/properties'), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) throw new Error('Failed to import properties');
+  return res.json() as Promise<ImportPropertiesResult>;
+}
+
+export type AgentRole = 'admin' | 'agent' | 'manager' | 'compliance';
+
+export interface Agent {
+  username: string;
+  role: AgentRole;
+}
+
+export interface AgentCreate {
+  username: string;
+  role: AgentRole;
+  password: string;
+}
+
+export const AGENT_ROLES: AgentRole[] = ['admin', 'manager', 'compliance', 'agent'];
+
+export async function listAgents(token: string) {
+  const res = await fetch(apiUrl('/agents'), { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load agents');
+  return res.json() as Promise<Agent[]>;
+}
+
+export async function createAgent(token: string, agent: AgentCreate) {
+  const res = await fetch(apiUrl('/agents'), {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(agent),
+  });
+  if (!res.ok) throw new Error('Failed to create agent');
+  return res.json() as Promise<Agent>;
+}
+
 export async function getStands(token: string) {
   const res = await fetch(apiUrl('/stands/available'), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load stands');
