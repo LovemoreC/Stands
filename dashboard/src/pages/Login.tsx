@@ -30,26 +30,38 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div>
-      <h2>Login</h2>
-      <form onSubmit={submit}>
-        <input
-          placeholder="Username"
-          value={username}
-          onChange={e => setUsername(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          required
-        />
-        <button type="submit">Login</button>
+    <section className="form-section">
+      <form className="form-card" onSubmit={submit}>
+        <h2 className="form-title">Login</h2>
+        <div className="form-fields">
+          <label htmlFor="login-username">
+            Username
+            <input
+              id="login-username"
+              placeholder="Enter your username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              required
+            />
+          </label>
+          <label htmlFor="login-password">
+            Password
+            <input
+              id="login-password"
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+        {error && <p className="form-message form-message--error">{error}</p>}
+        <div className="form-actions">
+          <button type="submit">Login</button>
+        </div>
       </form>
-      {error && <p>{error}</p>}
-    </div>
+    </section>
   );
 };
 

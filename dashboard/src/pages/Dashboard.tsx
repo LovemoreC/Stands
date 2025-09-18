@@ -65,14 +65,21 @@ const Dashboard: React.FC = () => {
     };
 
     return (
-      <form onSubmit={submit}>
-        <input
-          placeholder="Details"
-          value={details}
-          onChange={e => setDetails(e.target.value)}
-          required
-        />
-        <button type="submit">{label}</button>
+      <form className="upload-inline-form" onSubmit={submit}>
+        <div className="form-fields">
+          <label>
+            Details
+            <input
+              placeholder="Provide submission details"
+              value={details}
+              onChange={e => setDetails(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+        <div className="form-actions">
+          <button type="submit">{label}</button>
+        </div>
         {progress > 0 && <progress value={progress} max={100} />}
       </form>
     );
@@ -83,89 +90,115 @@ const Dashboard: React.FC = () => {
   return (
     <div>
       <h2>Dashboard</h2>
-      <div>
-        <input
-          placeholder="Project ID"
-          value={project}
-          onChange={e => setProject(e.target.value)}
-        />
-        <input
-          placeholder="Max Price"
-          value={price}
-          onChange={e => setPrice(e.target.value)}
-        />
-        <select value={status} onChange={e => setStatus(e.target.value)}>
-          <option value="">All</option>
-          <option value="available">Available</option>
-          <option value="reserved">Reserved</option>
-          <option value="sold">Sold</option>
-        </select>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Project</th>
-            <th>Name</th>
-            <th>Price</th>
-            <th>Status</th>
-            <th>Agreement Status</th>
-            <th>Expires</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map(s => (
-            <tr key={s.id}>
-              <td>{s.id}</td>
-              <td>{s.project_id}</td>
-              <td>{s.name}</td>
-              <td>{s.price}</td>
-              <td>{s.status}</td>
-              <td>{s.mandate?.agreement_status || 'N/A'}</td>
-              <td>
-                {s.mandate?.expiration_date
-                  ? new Date(s.mandate.expiration_date).toLocaleDateString()
-                  : 'N/A'}
-              </td>
-              <td>
-                <UploadForm
-                  label="Offer"
-                  onSubmit={details =>
-                    submitOffer(auth.token, {
-                      id: Date.now(),
-                      realtor: auth.username,
-                      property_id: s.id,
-                      details,
-                    })
-                  }
-                />
-                <UploadForm
-                  label="Account Opening"
-                  onSubmit={details =>
-                    submitAccountOpening(auth.token, {
-                      id: Date.now(),
-                      realtor: auth.username,
-                      details,
-                    })
-                  }
-                />
-                <UploadForm
-                  label="Property Application"
-                  onSubmit={details =>
-                    submitPropertyApplication(auth.token, {
-                      id: Date.now(),
-                      realtor: auth.username,
-                      property_id: s.id,
-                      details,
-                    })
-                  }
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <section className="form-section">
+        <div className="form-card">
+          <h3 className="form-title">Filter Stands</h3>
+          <div className="form-fields">
+            <label htmlFor="dashboard-project-filter">
+              Project ID
+              <input
+                id="dashboard-project-filter"
+                placeholder="Filter by project ID"
+                value={project}
+                onChange={e => setProject(e.target.value)}
+              />
+            </label>
+            <label htmlFor="dashboard-price-filter">
+              Max Price
+              <input
+                id="dashboard-price-filter"
+                placeholder="Filter by maximum price"
+                value={price}
+                onChange={e => setPrice(e.target.value)}
+              />
+            </label>
+            <label htmlFor="dashboard-status-filter">
+              Status
+              <select
+                id="dashboard-status-filter"
+                value={status}
+                onChange={e => setStatus(e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="available">Available</option>
+                <option value="reserved">Reserved</option>
+                <option value="sold">Sold</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </section>
+      <section className="form-section">
+        <div className="form-card">
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead className="data-table__header">
+                <tr>
+                  <th scope="col">ID</th>
+                  <th scope="col">Project</th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Price</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Agreement Status</th>
+                  <th scope="col">Expires</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(s => (
+                  <tr key={s.id}>
+                    <td>{s.id}</td>
+                    <td>{s.project_id}</td>
+                    <td>{s.name}</td>
+                    <td>{s.price}</td>
+                    <td>{s.status}</td>
+                    <td>{s.mandate?.agreement_status || 'N/A'}</td>
+                    <td>
+                      {s.mandate?.expiration_date
+                        ? new Date(s.mandate.expiration_date).toLocaleDateString()
+                        : 'N/A'}
+                    </td>
+                    <td className="data-table__actions">
+                      <UploadForm
+                        label="Offer"
+                        onSubmit={details =>
+                          submitOffer(auth.token, {
+                            id: Date.now(),
+                            realtor: auth.username,
+                            property_id: s.id,
+                            details,
+                          })
+                        }
+                      />
+                      <UploadForm
+                        label="Account Opening"
+                        onSubmit={details =>
+                          submitAccountOpening(auth.token, {
+                            id: Date.now(),
+                            realtor: auth.username,
+                            details,
+                          })
+                        }
+                      />
+                      <UploadForm
+                        label="Property Application"
+                        onSubmit={details =>
+                          submitPropertyApplication(auth.token, {
+                            id: Date.now(),
+                            realtor: auth.username,
+                            property_id: s.id,
+                            details,
+                          })
+                        }
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };
