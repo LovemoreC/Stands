@@ -115,3 +115,4 @@ class Repositories:
         self.agreements = Repository(session, 'agreements', Agreement)
         self.customer_loan_accounts = SimpleRepository(session, 'customer_loan_accounts')
         self.audit_log = ListRepository(session, 'audit_log')
+        self.counters = SimpleRepository(session, 'counters')

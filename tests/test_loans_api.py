@@ -10,7 +10,9 @@ def setup_agents(client):
     drop_db()
     init_db()
     client.post(
-        "/agents", json={"username": "admin", "role": "admin", "password": "a"}
+        "/agents",
+        json={"username": "admin", "role": "admin", "password": "a"},
+        headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     admin_token = client.post(
         "/auth/login", json={"username": "admin", "password": "a"}

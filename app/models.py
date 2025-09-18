@@ -18,10 +18,17 @@ class PropertyStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class Project(BaseModel):
-    id: int
+class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None
+
+
+class Project(ProjectBase):
+    id: int
+
+
+class ProjectCreate(ProjectBase):
+    pass
 
 
 class MandateStatus(str, Enum):
@@ -52,14 +59,21 @@ class MandateHistoryEntry(BaseModel):
     status: MandateStatus
 
 
-class Stand(BaseModel):
-    id: int
+class StandBase(BaseModel):
     project_id: int
     name: str
     size: float = Field(..., gt=0)
     price: float = Field(..., gt=0)
     status: PropertyStatus = PropertyStatus.AVAILABLE
+
+
+class Stand(StandBase):
+    id: int
     mandate: Optional[Mandate] = None
+
+
+class StandCreate(StandBase):
+    pass
 
 
 class AgentRole(str, Enum):

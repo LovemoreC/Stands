@@ -8,7 +8,11 @@ def setup_function(_):
     init_db()
 
 def register_users(client):
-    client.post("/agents", json={"username": "admin", "role": "admin", "password": "admin"})
+    client.post(
+        "/agents",
+        json={"username": "admin", "role": "admin", "password": "admin"},
+        headers={"X-Bootstrap-Token": "bootstrap-token"},
+    )
     admin_token = client.post(
         "/auth/login", json={"username": "admin", "password": "admin"}
     ).json()["token"]

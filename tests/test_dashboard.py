@@ -19,7 +19,9 @@ def register_agents(client):
     tokens = {}
     # create first admin
     client.post(
-        "/agents", json={"username": "admin", "role": "admin", "password": "admin"}
+        "/agents",
+        json={"username": "admin", "role": "admin", "password": "admin"},
+        headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     admin_token = client.post(
         "/auth/login", json={"username": "admin", "password": "admin"}
@@ -40,16 +42,21 @@ def register_agents(client):
 
 
 def setup_data(client, admin_headers, agent_headers):
-    project = {"id": 100, "name": "Proj"}
-    client.post("/projects", json=project, headers=admin_headers)
-    stand = {"id": 100, "project_id": 100, "name": "Stand1", "size": 100, "price": 1000}
-    client.post("/stands", json=stand, headers=admin_headers)
+    project = {"name": "Proj"}
+    project_id = client.post("/projects", json=project, headers=admin_headers).json()["id"]
+    stand = {
+        "project_id": project_id,
+        "name": "Stand1",
+        "size": 100,
+        "price": 1000,
+    }
+    stand_id = client.post("/stands", json=stand, headers=admin_headers).json()["id"]
     client.post(
-        "/stands/100/mandate",
+        f"/stands/{stand_id}/mandate",
         json={"agent": "agentA", "document": "m.pdf"},
         headers=admin_headers,
     )
-    client.put("/stands/100/mandate/accept", headers=agent_headers)
+    client.put(f"/stands/{stand_id}/mandate/accept", headers=agent_headers)
     client.post(
         "/account-openings",
         json={"id": 100, "realtor": "agentA"},

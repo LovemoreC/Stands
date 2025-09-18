@@ -13,7 +13,9 @@ def setup_function():
 def test_auth_mandate_and_available_view(client):
     # register agents
     resp = client.post(
-        "/agents", json={"username": "admin", "role": "admin", "password": "a"}
+        "/agents",
+        json={"username": "admin", "role": "admin", "password": "a"},
+        headers={"X-Bootstrap-Token": "bootstrap-token"},
     )
     assert resp.status_code == 200
     admin_token = client.post(
@@ -33,43 +35,54 @@ def test_auth_mandate_and_available_view(client):
     agent_headers = {"Authorization": f"Bearer {agent_token}"}
 
     # Create project as admin
-    project = {"id": 1, "name": "Project A"}
+    project = {"name": "Project A"}
     resp = client.post("/projects", json=project, headers=admin_headers)
     assert resp.status_code == 200
+    project_id = resp.json()["id"]
 
     # Create stand as admin
-    stand = {"id": 1, "project_id": 1, "name": "Stand 1", "size": 100, "price": 1000}
+    stand = {"project_id": project_id, "name": "Stand 1", "size": 100, "price": 1000}
     resp = client.post("/stands", json=stand, headers=admin_headers)
     assert resp.status_code == 200
+    stand_id = resp.json()["id"]
 
     # Agent cannot create stand
     resp = client.post(
         "/stands",
-        json={"id": 2, "project_id": 1, "name": "Stand 2", "size": 100, "price": 1000},
+        json={
+            "project_id": project_id,
+            "name": "Stand 2",
+            "size": 100,
+            "price": 1000,
+        },
         headers=agent_headers,
     )
     assert resp.status_code == 403
 
     # Update stand as admin
     stand_update = {
-        "id": 1,
-        "project_id": 1,
+        "id": stand_id,
+        "project_id": project_id,
         "name": "Stand 1 Updated",
         "status": "available",
         "size": 100,
         "price": 1000,
     }
-    resp = client.put("/stands/1", json=stand_update, headers=admin_headers)
+    resp = client.put(f"/stands/{stand_id}", json=stand_update, headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["name"] == "Stand 1 Updated"
 
     # Assign mandate with document
-    resp = client.post("/stands/1/mandate", json={"agent": "agentA", "document": "doc.pdf"}, headers=admin_headers)
+    resp = client.post(
+        f"/stands/{stand_id}/mandate",
+        json={"agent": "agentA", "document": "doc.pdf"},
+        headers=admin_headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["mandate"]["status"] == "pending"
 
     # Agent accepts mandate
-    resp = client.put("/stands/1/mandate/accept", headers=agent_headers)
+    resp = client.put(f"/stands/{stand_id}/mandate/accept", headers=agent_headers)
     assert resp.status_code == 200
     assert resp.json()["mandate"]["status"] == "accepted"
 
@@ -84,7 +97,7 @@ def test_auth_mandate_and_available_view(client):
     assert len(resp.json()) == 1
 
     # Archive stand
-    resp = client.delete("/stands/1", headers=admin_headers)
+    resp = client.delete(f"/stands/{stand_id}", headers=admin_headers)
     assert resp.status_code == 200
     assert resp.json()["status"] == PropertyStatus.ARCHIVED.value
 
