@@ -21,9 +21,24 @@ const AuthContext = React.createContext<AuthContextType>({
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [auth, setAuth] = React.useState<Auth | null>(null);
+
+  React.useEffect(() => {
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+    const username = localStorage.getItem('username');
+    if (token && role && username) {
+      setAuth({ token, role, username });
+    }
+  }, []);
+
   const login = (token: string, role: string, username: string) =>
     setAuth({ token, role, username });
-  const logout = () => setAuth(null);
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    localStorage.removeItem('username');
+    setAuth(null);
+  };
   return (
     <AuthContext.Provider value={{ auth, login, logout }}>
       {children}

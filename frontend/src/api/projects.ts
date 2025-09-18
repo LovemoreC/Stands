@@ -47,6 +47,21 @@ export async function deleteProject(id: number): Promise<Project> {
   return apiFetch(`/projects/${id}`, { method: 'DELETE' });
 }
 
+export interface ImportPropertiesResult {
+  message?: string;
+  imported?: number;
+}
+
+export async function importProperties(file: File): Promise<ImportPropertiesResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiFetch('/import/properties', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
   useEffect(() => {

@@ -15,6 +15,9 @@ const Login: React.FC = () => {
     setError('');
     try {
       const data = await loginRequest({ username, password });
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('role', data.role);
+      localStorage.setItem('username', data.username);
       login(data.token, data.role, data.username);
       if (data.role === 'agent') {
         navigate('/dashboard');
