@@ -91,10 +91,60 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-def on_startup() -> None:
+def seed_initial_admin_if_configured() -> None:
+    username = os.environ.get("INITIAL_ADMIN_USERNAME")
+    if not username:
+        return
+
+    password = os.environ.get("INITIAL_ADMIN_PASSWORD")
+    password_hash = os.environ.get("INITIAL_ADMIN_PASSWORD_HASH")
+
+    if not password and not password_hash:
+        logger.warning(
+            "INITIAL_ADMIN_USERNAME is set but neither INITIAL_ADMIN_PASSWORD nor "
+            "INITIAL_ADMIN_PASSWORD_HASH was provided; skipping admin seeding"
+        )
+        return
+
+    session = SessionLocal()
+    try:
+        repos = Repositories(session)
+        if repos.agents.list():
+            logger.debug(
+                "Skipping initial admin seeding because at least one agent already exists"
+            )
+            return
+
+        hashed = password_hash
+        if password:
+            hashed = hash_password(password)
+
+        if not hashed:
+            logger.warning(
+                "Unable to determine password hash for initial admin; skipping seeding"
+            )
+            return
+
+        admin = AgentInDB(
+            username=username,
+            role=AgentRole.ADMIN,
+            password_hash=hashed,
+        )
+        repos.agents.add(admin)
+        logger.info("Seeded initial admin '%s' from environment", username)
+    finally:
+        session.close()
+
+
+def run_startup_tasks() -> None:
     logger.info("Configured frontend origins: %s", ", ".join(FRONTEND_ORIGINS))
     init_db()
+    seed_initial_admin_if_configured()
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    run_startup_tasks()
 
 
 def get_repositories(session=Depends(get_session)) -> Repositories:

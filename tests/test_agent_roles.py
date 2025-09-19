@@ -1,7 +1,7 @@
 import sys
 sys.path.append('.')
 
-from app.database import drop_db, init_db
+from app.database import drop_db, init_db, SessionLocal
 
 
 def setup_function():
@@ -117,3 +117,31 @@ def test_list_agents_requires_admin_and_returns_agents(client):
     )
     assert forbidden.status_code == 403
     assert forbidden.json()["detail"] == "Admin privileges required"
+
+
+def test_startup_seeds_initial_admin(monkeypatch):
+    from app.main import on_startup, verify_password
+    from app.models import AgentRole
+    from app.repositories import Repositories
+
+    monkeypatch.setenv("INITIAL_ADMIN_USERNAME", "bootstrap-admin")
+    monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "Seeding123!")
+    monkeypatch.delenv("INITIAL_ADMIN_PASSWORD_HASH", raising=False)
+
+    drop_db()
+    init_db()
+
+    on_startup()
+
+    session = SessionLocal()
+    try:
+        repos = Repositories(session)
+        agents = repos.agents.list()
+    finally:
+        session.close()
+
+    assert len(agents) == 1
+    admin = agents[0]
+    assert admin.username == "bootstrap-admin"
+    assert admin.role == AgentRole.ADMIN
+    assert verify_password("Seeding123!", admin.password_hash)
