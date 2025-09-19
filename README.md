@@ -18,11 +18,18 @@ cp .env.example .env
 # edit .env and provide a SECRET_KEY
 ```
 
+To automatically create the first administrator during startup, set
+`INITIAL_ADMIN_USERNAME` along with either `INITIAL_ADMIN_PASSWORD` or
+`INITIAL_ADMIN_PASSWORD_HASH`. When both are provided the plaintext password wins and is
+hashed before storage.
+
 ## Running
 
 ```
 SECRET_KEY=your-secret-key \
 INITIAL_ADMIN_TOKEN=bootstrap-token \
+INITIAL_ADMIN_USERNAME=admin \
+INITIAL_ADMIN_PASSWORD=Secret123 \
 FRONTEND_ORIGINS="http://localhost:5173" \
 uvicorn app.main:app --reload
 ```
@@ -73,6 +80,15 @@ Once the containers are running you can reach:
 
 - Dashboard: <http://localhost:8080>
 - API: <http://localhost:8000> (interactive docs at <http://localhost:8000/docs>)
+
+To seed the initial administrator in Docker, export the optional variables before running
+Compose so the startup hook can create the account when the database is empty:
+
+```bash
+INITIAL_ADMIN_USERNAME=admin \
+INITIAL_ADMIN_PASSWORD=Secret123 \
+docker compose up --build
+```
 
 The backend persists the SQLite database using the named volume `sqlite_data` mounted at `/app/data` and reads environment values from `.env`.
 By default it allows requests from both `http://localhost:8080` and `http://localhost:5173` so the static dashboard and the Vite dev server can call the API.
