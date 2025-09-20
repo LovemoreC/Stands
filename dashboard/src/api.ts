@@ -117,6 +117,86 @@ export async function createAgent(token: string, agent: AgentCreate) {
   return res.json() as Promise<Agent>;
 }
 
+export type DocumentWorkflow =
+  | 'offer'
+  | 'property_application'
+  | 'account_opening'
+  | 'loan_application';
+
+export interface DocumentRequirement {
+  id: number;
+  name: string;
+  applies_to: DocumentWorkflow;
+  order: number;
+}
+
+export interface DocumentRequirementInput {
+  name: string;
+  applies_to: DocumentWorkflow;
+}
+
+export async function listDocumentRequirements(
+  token: string,
+  appliesTo?: DocumentWorkflow,
+) {
+  const params = appliesTo ? `?applies_to=${appliesTo}` : '';
+  const res = await fetch(apiUrl(`/document-requirements${params}`), {
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to load document requirements');
+  return res.json() as Promise<DocumentRequirement[]>;
+}
+
+export async function createDocumentRequirement(
+  token: string,
+  payload: DocumentRequirementInput,
+) {
+  const res = await fetch(apiUrl('/document-requirements'), {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to create document requirement');
+  return res.json() as Promise<DocumentRequirement>;
+}
+
+export async function updateDocumentRequirement(
+  token: string,
+  id: number,
+  payload: Partial<DocumentRequirementInput>,
+) {
+  const res = await fetch(apiUrl(`/document-requirements/${id}`), {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to update document requirement');
+  return res.json() as Promise<DocumentRequirement>;
+}
+
+export async function deleteDocumentRequirement(token: string, id: number) {
+  const res = await fetch(apiUrl(`/document-requirements/${id}`), {
+    method: 'DELETE',
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to delete document requirement');
+  return res.json() as Promise<DocumentRequirement>;
+}
+
+export async function reorderDocumentRequirements(
+  token: string,
+  appliesTo: DocumentWorkflow,
+  orderedIds: number[],
+) {
+  const res = await fetch(apiUrl('/document-requirements/reorder'), {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify({ applies_to: appliesTo, ordered_ids: orderedIds }),
+  });
+  if (!res.ok) throw new Error('Failed to reorder document requirements');
+  return res.json() as Promise<DocumentRequirement[]>;
+}
+
 export async function getStands(token: string) {
   const res = await fetch(apiUrl('/stands/available'), { headers: headers(token) });
   if (!res.ok) throw new Error('Failed to load stands');
