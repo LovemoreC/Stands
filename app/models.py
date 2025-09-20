@@ -166,6 +166,7 @@ class LoanApplication(BaseModel):
     realtor: str
     account_id: int
     property_id: Optional[int] = None
+    property_application_id: Optional[int] = None
     required_documents: Dict[str, UploadedFile] = Field(default_factory=dict)
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
     decision: Optional[LoanDecision] = None

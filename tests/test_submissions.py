@@ -157,6 +157,31 @@ def test_submission_payload_privileged_fields_are_sanitized(client):
     )
     assert resp.status_code == 200
 
+    project_id = client.post(
+        "/projects", json={"name": "Sanitized"}, headers=admin_headers
+    ).json()["id"]
+    stand_id = client.post(
+        "/stands",
+        json={"project_id": project_id, "name": "Sanitized Stand", "size": 120, "price": 1500},
+        headers=admin_headers,
+    ).json()["id"]
+    property_application = {
+        "id": 4040,
+        "realtor": "realtor",
+        "property_id": stand_id,
+    }
+    resp = client.post(
+        "/property-applications",
+        json=property_application,
+        headers=realtor_headers,
+    )
+    assert resp.status_code == 200
+    resp = client.post(
+        f"/property-applications/{property_application['id']}/approve",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
     loan_requirement = client.post(
         "/document-requirements",
         json={"name": "Loan package", "applies_to": "loan_application"},
@@ -167,6 +192,8 @@ def test_submission_payload_privileged_fields_are_sanitized(client):
         "id": 404,
         "realtor": "realtor",
         "account_id": 303,
+        "property_application_id": property_application["id"],
+        "property_id": stand_id,
         "required_documents": {
             loan_requirement["slug"]: {
                 "filename": "loan.pdf",
@@ -189,6 +216,17 @@ def test_submission_payload_privileged_fields_are_sanitized(client):
     assert body["reason"] is None
     assert body["loan_account_number"] is None
     assert "required_documents" in body
+
+    resp = client.get(
+        "/property-applications",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    prop_records = {record["id"]: record for record in resp.json()}
+    assert (
+        prop_records[property_application["id"]]["status"]
+        == SubmissionStatus.IN_PROGRESS.value
+    )
     resp = client.get("/loan-applications/404", headers=realtor_headers)
     stored = resp.json()
     assert stored["status"] == SubmissionStatus.SUBMITTED.value
@@ -266,6 +304,32 @@ def test_loan_application_flow(client):
     requirement_id = requirement_data["id"]
     requirement_slug = requirement_data["slug"]
 
+    project_id = client.post(
+        "/projects", json={"name": "Loan Project"}, headers=admin_headers
+    ).json()["id"]
+    stand_id = client.post(
+        "/stands",
+        json={"project_id": project_id, "name": "Loan Stand", "size": 100, "price": 1000},
+        headers=admin_headers,
+    ).json()["id"]
+
+    property_application = {
+        "id": 11,
+        "realtor": "realtor",
+        "property_id": stand_id,
+    }
+    resp = client.post(
+        "/property-applications",
+        json=property_application,
+        headers=realtor_headers,
+    )
+    assert resp.status_code == 200
+    resp = client.post(
+        f"/property-applications/{property_application['id']}/approve",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
     account = {"id": 3, "realtor": "realtor"}
     resp = client.post("/account-openings", json=account, headers=realtor_headers)
     assert resp.status_code == 200
@@ -296,6 +360,8 @@ def test_loan_application_flow(client):
         "id": 1,
         "realtor": "realtor",
         "account_id": 3,
+        "property_application_id": property_application["id"],
+        "property_id": stand_id,
         "required_documents": {
             requirement_slug: {
                 "filename": "loan.pdf",
@@ -318,6 +384,8 @@ def test_loan_application_flow(client):
         "id": 1,
         "realtor": "realtor",
         "account_id": 3,
+        "property_application_id": property_application["id"],
+        "property_id": stand_id,
         "required_documents": {},
     }
     resp = client.post(
@@ -333,6 +401,14 @@ def test_loan_application_flow(client):
     assert resp.status_code == 200
     assert resp.json()["status"] == SubmissionStatus.SUBMITTED.value
 
+    resp = client.get(
+        "/property-applications",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    prop_records = {record["id"]: record for record in resp.json()}
+    assert prop_records[property_application["id"]]["status"] == SubmissionStatus.IN_PROGRESS.value
+
     resp = client.put(
         "/loan-applications/1/decision",
         json={"decision": "approved", "reason": "All good"},
@@ -343,12 +419,42 @@ def test_loan_application_flow(client):
     assert resp.json()["decision"] == "approved"
     assert resp.json()["reason"] == "All good"
 
+    resp = client.get(
+        "/property-applications",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    prop_records = {record["id"]: record for record in resp.json()}
+    assert (
+        prop_records[property_application["id"]]["status"]
+        == SubmissionStatus.COMPLETED.value
+    )
+
+    second_property_application = {
+        "id": 12,
+        "realtor": "realtor",
+        "property_id": stand_id,
+    }
+    resp = client.post(
+        "/property-applications",
+        json=second_property_application,
+        headers=realtor_headers,
+    )
+    assert resp.status_code == 200
+    resp = client.post(
+        f"/property-applications/{second_property_application['id']}/approve",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
     resp = client.post(
         "/loan-applications",
         json={
             "id": 2,
             "realtor": "realtor",
             "account_id": 3,
+            "property_application_id": second_property_application["id"],
+            "property_id": stand_id,
             "required_documents": {
             requirement_slug: {
                 "filename": "loan2.pdf",
@@ -370,6 +476,17 @@ def test_loan_application_flow(client):
     assert resp.json()["status"] == SubmissionStatus.REJECTED.value
     assert resp.json()["decision"] == "rejected"
     assert resp.json()["reason"] == "Insufficient credit"
+
+    resp = client.get(
+        "/property-applications",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    prop_records = {record["id"]: record for record in resp.json()}
+    assert (
+        prop_records[second_property_application["id"]]["status"]
+        == SubmissionStatus.REJECTED.value
+    )
 
 
 def test_loan_application_realtor_mismatch_rejected(client):
@@ -402,6 +519,31 @@ def test_loan_application_realtor_mismatch_rejected(client):
     )
     assert resp.status_code == 200
 
+    project_id = client.post(
+        "/projects", json={"name": "Mismatch"}, headers=admin_headers
+    ).json()["id"]
+    stand_id = client.post(
+        "/stands",
+        json={"project_id": project_id, "name": "Mismatch Stand", "size": 80, "price": 500},
+        headers=admin_headers,
+    ).json()["id"]
+    property_application = {
+        "id": 21,
+        "realtor": "realtor",
+        "property_id": stand_id,
+    }
+    resp = client.post(
+        "/property-applications",
+        json=property_application,
+        headers=realtor_headers,
+    )
+    assert resp.status_code == 200
+    resp = client.post(
+        f"/property-applications/{property_application['id']}/approve",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
     # Another agent attempts to submit a loan application using this account
     resp = client.post(
         "/agents",
@@ -418,6 +560,8 @@ def test_loan_application_realtor_mismatch_rejected(client):
         "id": 99,
         "realtor": "other",
         "account_id": 7,
+        "property_application_id": property_application["id"],
+        "property_id": stand_id,
         "documents": ["doc"],
     }
     resp = client.post("/loan-applications", json=loan_app, headers=other_headers)
@@ -499,12 +643,30 @@ def test_loan_application_queue_listing_and_agreement_generation(client):
         headers=admin_headers,
     )
 
+    property_application = {
+        "id": 61,
+        "realtor": "realtor",
+        "property_id": stand_id,
+    }
+    resp = client.post(
+        "/property-applications",
+        json=property_application,
+        headers=realtor_headers,
+    )
+    assert resp.status_code == 200
+    resp = client.post(
+        f"/property-applications/{property_application['id']}/approve",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
     loan_app = {
         "id": 10,
         "realtor": "realtor",
         "account_id": 1,
         "documents": ["doc"],
         "property_id": stand_id,
+        "property_application_id": property_application["id"],
     }
     client.post("/loan-applications", json=loan_app, headers=realtor_headers)
 
