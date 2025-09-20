@@ -653,3 +653,47 @@ export async function decideLoan(
   if (!res.ok) throw new Error('Failed to decide loan');
   return res.json();
 }
+
+export interface CustomerProfile {
+  account_number: string;
+  account_opening_id?: number | null;
+  realtor?: string | null;
+  loan_application_ids: number[];
+  agreement_ids: number[];
+  last_inbound_email_at?: string | null;
+  deletion_requested: boolean;
+  deletion_requested_at?: string | null;
+  deletion_requested_by?: string | null;
+  deletion_approved_at?: string | null;
+  deletion_approved_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const profileUrl = (accountNumber: string) =>
+  `/profiles/${encodeURIComponent(accountNumber)}`;
+
+export async function getCustomerProfile(token: string, accountNumber: string) {
+  const res = await fetch(apiUrl(profileUrl(accountNumber)), {
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to load profile');
+  return res.json() as Promise<CustomerProfile>;
+}
+
+export async function requestProfileDeletion(token: string, accountNumber: string) {
+  const res = await fetch(apiUrl(`${profileUrl(accountNumber)}/request-deletion`), {
+    method: 'POST',
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to request deletion');
+  return res.json() as Promise<CustomerProfile>;
+}
+
+export async function deleteCustomerProfile(token: string, accountNumber: string) {
+  const res = await fetch(apiUrl(profileUrl(accountNumber)), {
+    method: 'DELETE',
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to delete profile');
+}
