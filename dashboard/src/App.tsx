@@ -21,6 +21,8 @@ import DocumentRequirementsPage from './pages/DocumentRequirements';
 import ImportedDeposits from './pages/ImportedDeposits';
 import ImportedLoanAccounts from './pages/ImportedLoanAccounts';
 import ContactSettingsPage from './pages/ContactSettings';
+import CustomerProfileAgent from './pages/CustomerProfileAgent';
+import CustomerProfilesManage from './pages/CustomerProfilesManage';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -36,6 +38,7 @@ const App: React.FC = () => {
           { to: '/contact-settings', label: 'Contact Settings' },
           { to: '/agents', label: 'Agents' },
           { to: '/account-openings', label: 'Account Openings' },
+          { to: '/customer-profiles/manage', label: 'Customer Profiles' },
           { to: '/loan-applications', label: 'Loan Applications' },
           { to: '/loan-approvals', label: 'Loan Approvals' },
           { to: '/deposits', label: 'Deposits' },
@@ -47,6 +50,7 @@ const App: React.FC = () => {
         ? [
             { to: '/manager-dashboard', label: 'Dashboard' },
             { to: '/account-openings', label: 'Account Openings' },
+            { to: '/customer-profiles/manage', label: 'Customer Profiles' },
             { to: '/imported-deposits', label: 'Imported Deposits' },
             { to: '/imported-loan-accounts', label: 'Imported Loan Accounts' },
           ]
@@ -56,6 +60,7 @@ const App: React.FC = () => {
             ? [
                 { to: '/dashboard', label: 'Dashboard' },
                 { to: '/submit', label: 'New Submission' },
+                { to: '/customer-profiles', label: 'Customer Profiles' },
               ]
             : []
     : [];
@@ -104,6 +109,14 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute roles={["admin"]}>
                   <AgentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/customer-profiles/manage"
+              element={
+                <ProtectedRoute roles={["admin", "manager"]}>
+                  <CustomerProfilesManage />
                 </ProtectedRoute>
               }
             />
@@ -240,6 +253,14 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute roles={["agent"]}>
                   <MultiStepForm />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/customer-profiles"
+              element={
+                <ProtectedRoute roles={["agent"]}>
+                  <CustomerProfileAgent />
                 </ProtectedRoute>
               }
             />

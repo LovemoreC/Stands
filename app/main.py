@@ -72,6 +72,7 @@ from .models import (
     ImportedLoanAccount,
     ContactSettings,
     ContactSettingsResponse,
+    CustomerProfile,
 )
 
 logger = logging.getLogger(__name__)
@@ -1126,6 +1127,106 @@ def _derive_unique_slug(
         suffix += 1
 
 
+def _loan_ids_for_account(account_id: int, repos: Repositories) -> List[int]:
+    return sorted(
+        {
+            loan.id
+            for loan in repos.loan_applications.list()
+            if loan.account_id == account_id
+        }
+    )
+
+
+def _agreement_ids_for_loans(loan_ids: List[int], repos: Repositories) -> List[int]:
+    loan_id_set = set(loan_ids)
+    if not loan_id_set:
+        return []
+    return sorted(
+        {
+            agreement.id
+            for agreement in repos.agreements.list()
+            if agreement.loan_application_id in loan_id_set
+        }
+    )
+
+
+def _find_account_opening_by_number(
+    account_number: str, repos: Repositories
+) -> AccountOpening | None:
+    for opening in repos.account_openings.list():
+        if opening.account_number == account_number:
+            return opening
+    return None
+
+
+def _sync_profile_from_account(
+    account: AccountOpening, repos: Repositories
+) -> CustomerProfile | None:
+    if not account.account_number:
+        return None
+    loan_ids = _loan_ids_for_account(account.id, repos)
+    agreement_ids = _agreement_ids_for_loans(loan_ids, repos)
+    existing = repos.customer_profiles.get(account.account_number)
+    now = datetime.utcnow()
+    if existing:
+        profile = existing.model_copy(
+            update={
+                "account_opening_id": account.id,
+                "realtor": account.realtor,
+                "loan_application_ids": loan_ids,
+                "agreement_ids": agreement_ids,
+                "account_number": account.account_number,
+                "updated_at": now,
+            }
+        )
+    else:
+        profile = CustomerProfile(
+            id=account.account_number,
+            account_number=account.account_number,
+            account_opening_id=account.id,
+            realtor=account.realtor,
+            loan_application_ids=loan_ids,
+            agreement_ids=agreement_ids,
+            last_inbound_email_at=None,
+            deletion_requested=False,
+            deletion_requested_at=None,
+            deletion_requested_by=None,
+            deletion_approved_at=None,
+            deletion_approved_by=None,
+            created_at=now,
+            updated_at=now,
+        )
+    repos.customer_profiles.add(profile)
+    return profile
+
+
+def _touch_profile(
+    profile: CustomerProfile, repos: Repositories, **updates: Any
+) -> CustomerProfile:
+    payload = dict(updates)
+    payload["updated_at"] = datetime.utcnow()
+    new_profile = profile.model_copy(update=payload)
+    repos.customer_profiles.add(new_profile)
+    return new_profile
+
+
+def _get_profile_or_404(
+    repos: Repositories, account_number: str
+) -> CustomerProfile:
+    profile = repos.customer_profiles.get(account_number)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Customer profile not found")
+    return profile
+
+
+def _require_profile_access(profile: CustomerProfile, agent: Agent) -> None:
+    if agent.role in (AgentRole.ADMIN, AgentRole.MANAGER):
+        return
+    if agent.role == AgentRole.AGENT and profile.realtor == agent.username:
+        return
+    raise HTTPException(status_code=403, detail="Not authorized to access profile")
+
+
 async def _encode_upload_file(
     upload: UploadFile | StarletteUploadFile,
 ) -> UploadedFile:
@@ -1581,6 +1682,7 @@ def open_account(
     request.deposit_threshold = details.deposit_threshold
     request.status = SubmissionStatus.IN_PROGRESS
     repos.account_openings.add(request)
+    _sync_profile_from_account(request, repos)
     return request
 
 
@@ -1688,6 +1790,68 @@ def record_account_deposit(
     return request
 
 
+# ---- Customer profile endpoints ----
+
+
+@app.get("/profiles/{account_number}", response_model=CustomerProfile)
+def get_customer_profile(
+    account_number: str,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    profile = _get_profile_or_404(repos, account_number)
+    account = _find_account_opening_by_number(account_number, repos)
+    if account:
+        refreshed = _sync_profile_from_account(account, repos)
+        if refreshed:
+            profile = refreshed
+    _require_profile_access(profile, agent)
+    return profile
+
+
+@app.post("/profiles/{account_number}/request-deletion", response_model=CustomerProfile)
+def request_customer_profile_deletion(
+    account_number: str,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    profile = _get_profile_or_404(repos, account_number)
+    _require_profile_access(profile, agent)
+    if agent.role != AgentRole.AGENT:
+        raise HTTPException(status_code=403, detail="Only agents can request deletion")
+    updated = _touch_profile(
+        profile,
+        repos,
+        deletion_requested=True,
+        deletion_requested_at=datetime.utcnow(),
+        deletion_requested_by=agent.username,
+        deletion_approved_at=None,
+        deletion_approved_by=None,
+    )
+    repos.notifications.append(
+        f"Deletion requested for profile {account_number} by {agent.username}"
+    )
+    return updated
+
+
+@app.delete("/profiles/{account_number}", status_code=204)
+def delete_customer_profile(
+    account_number: str,
+    agent: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    profile = repos.customer_profiles.get(account_number)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Customer profile not found")
+    if not profile.deletion_requested:
+        raise HTTPException(status_code=400, detail="No pending deletion request")
+    repos.customer_profiles.delete(account_number)
+    repos.notifications.append(
+        f"Customer profile {account_number} deleted by {agent.username}"
+    )
+    return Response(status_code=204)
+
+
 @app.post("/loan-applications", response_model=LoanApplication)
 def submit_loan_application(
     application: LoanApplication,
@@ -1723,6 +1887,7 @@ def submit_loan_application(
         }
     )
     repos.loan_applications.add(sanitized_application)
+    _sync_profile_from_account(account, repos)
     repos.notifications.append(
         f"Loan application {sanitized_application.id} submitted by {sanitized_application.realtor}"
     )
@@ -2019,6 +2184,9 @@ def create_agreement(
     loan = repos.loan_applications.get(data.loan_application_id)
     if not loan:
         raise HTTPException(status_code=404, detail="Loan application not found")
+    account = repos.account_openings.get(loan.account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account opening not found")
     stand = repos.stands.get(data.property_id)
     if not stand:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -2035,6 +2203,7 @@ def create_agreement(
         status=AgreementStatus.DRAFT,
     )
     repos.agreements.add(agreement)
+    _sync_profile_from_account(account, repos)
     return agreement
 
 

@@ -279,3 +279,20 @@ class ContactSettings(BaseModel):
 
 class ContactSettingsResponse(ContactSettings):
     configured: bool = True
+
+
+class CustomerProfile(BaseModel):
+    id: str
+    account_number: str
+    account_opening_id: Optional[int] = None
+    realtor: Optional[str] = None
+    loan_application_ids: List[int] = Field(default_factory=list)
+    agreement_ids: List[int] = Field(default_factory=list)
+    last_inbound_email_at: Optional[datetime] = None
+    deletion_requested: bool = False
+    deletion_requested_at: Optional[datetime] = None
+    deletion_requested_by: Optional[str] = None
+    deletion_approved_at: Optional[datetime] = None
+    deletion_approved_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
