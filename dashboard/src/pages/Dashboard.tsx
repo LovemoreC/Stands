@@ -1,7 +1,10 @@
 import React from 'react';
 import { useAuth } from '../auth';
 import {
+  DocumentRequirement,
+  DocumentWorkflow,
   getStands,
+  listDocumentRequirements,
   submitOffer,
   submitAccountOpening,
   submitPropertyApplication,
@@ -28,11 +31,69 @@ const Dashboard: React.FC = () => {
   const [project, setProject] = React.useState('');
   const [price, setPrice] = React.useState('');
   const [status, setStatus] = React.useState('');
+  const [requirements, setRequirements] = React.useState<
+    Record<DocumentWorkflow, DocumentRequirement[]>
+  >({
+    offer: [],
+    property_application: [],
+    account_opening: [],
+    loan_application: [],
+  });
+  const [requirementsLoaded, setRequirementsLoaded] = React.useState(false);
 
   React.useEffect(() => {
     if (auth) {
       getStands(auth.token).then(setStands).catch(console.error);
     }
+  }, [auth]);
+
+  React.useEffect(() => {
+    if (!auth) {
+      setRequirements({
+        offer: [],
+        property_application: [],
+        account_opening: [],
+        loan_application: [],
+      });
+      setRequirementsLoaded(false);
+      return;
+    }
+    setRequirementsLoaded(false);
+    let cancelled = false;
+    (async () => {
+      try {
+        const [offerReqs, propertyReqs, accountReqs] = await Promise.all([
+          listDocumentRequirements(auth.token, 'offer'),
+          listDocumentRequirements(auth.token, 'property_application'),
+          listDocumentRequirements(auth.token, 'account_opening'),
+        ]);
+        if (!cancelled) {
+          setRequirements(prev => ({
+            ...prev,
+            offer: offerReqs,
+            property_application: propertyReqs,
+            account_opening: accountReqs,
+          }));
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setRequirements(prev => ({
+            ...prev,
+            offer: [],
+            property_application: [],
+            account_opening: [],
+          }));
+        }
+      } finally {
+        if (!cancelled) {
+          setRequirementsLoaded(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [auth]);
 
   const filtered = stands.filter(s =>
@@ -43,20 +104,106 @@ const Dashboard: React.FC = () => {
 
   const UploadForm: React.FC<{
     label: string;
-    onSubmit: (details: string) => Promise<void>;
-  }> = ({ label, onSubmit }) => {
+    requirements: DocumentRequirement[];
+    onSubmit: (payload: {
+      details: string;
+      primaryFile: File;
+      documents: Record<string, File>;
+    }) => Promise<void>;
+    disabled?: boolean;
+  }> = ({ label, requirements, onSubmit, disabled }) => {
+    const baseId = React.useId();
     const [details, setDetails] = React.useState('');
+    const [primaryFile, setPrimaryFile] = React.useState<File | null>(null);
+    const [documents, setDocuments] = React.useState<Record<string, File | null>>({});
     const [progress, setProgress] = React.useState(0);
+    const [error, setError] = React.useState<string | null>(null);
+    const primaryInputRef = React.useRef<HTMLInputElement | null>(null);
+    const documentRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
+
+    React.useEffect(() => {
+      const initial: Record<string, File | null> = {};
+      requirements.forEach(req => {
+        initial[req.slug] = null;
+      });
+      setDocuments(initial);
+      documentRefs.current = {};
+    }, [requirements]);
+
+    const validateFile = (file: File | null) => {
+      if (!file) return 'File is required';
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      return ext && (ext === 'pdf' || ext === 'csv')
+        ? null
+        : 'File must be PDF or CSV';
+    };
+
+    const updateDocument = (slug: string, file: File | null) => {
+      setDocuments(prev => ({ ...prev, [slug]: file }));
+    };
+
+    const resetForm = () => {
+      setDetails('');
+      setPrimaryFile(null);
+      const cleared: Record<string, File | null> = {};
+      requirements.forEach(req => {
+        cleared[req.slug] = null;
+      });
+      setDocuments(cleared);
+      if (primaryInputRef.current) {
+        primaryInputRef.current.value = '';
+      }
+      Object.values(documentRefs.current).forEach(input => {
+        if (input) {
+          input.value = '';
+        }
+      });
+    };
+
+    const allDocsSelected = requirements.every(req => Boolean(documents[req.slug]));
+    const isComplete = Boolean(details.trim()) && Boolean(primaryFile) && allDocsSelected;
 
     const submit = async (e: React.FormEvent) => {
       e.preventDefault();
+      if (disabled) return;
+      setError(null);
+      if (!isComplete) {
+        setError('All fields are required');
+        return;
+      }
+      const primaryError = validateFile(primaryFile);
+      if (primaryError) {
+        setError(primaryError);
+        return;
+      }
+      for (const req of requirements) {
+        const docError = validateFile(documents[req.slug] ?? null);
+        if (docError) {
+          setError(`${req.name}: ${docError}`);
+          return;
+        }
+      }
+      const docFiles: Record<string, File> = {};
+      requirements.forEach(req => {
+        const file = documents[req.slug];
+        if (file) {
+          docFiles[req.slug] = file;
+        }
+      });
       setProgress(0);
       const interval = setInterval(
         () => setProgress(p => Math.min(p + 10, 90)),
         200
       );
       try {
-        await onSubmit(details);
+        await onSubmit({
+          details: details.trim(),
+          primaryFile: primaryFile as File,
+          documents: docFiles,
+        });
+        resetForm();
+      } catch (err: any) {
+        setError(err?.message ?? 'Submission failed');
       } finally {
         clearInterval(interval);
         setProgress(100);
@@ -67,18 +214,51 @@ const Dashboard: React.FC = () => {
     return (
       <form className="upload-inline-form" onSubmit={submit}>
         <div className="form-fields">
-          <label>
+          <label htmlFor={`${baseId}-details`}>
             Details
             <input
+              id={`${baseId}-details`}
               placeholder="Provide submission details"
               value={details}
               onChange={e => setDetails(e.target.value)}
               required
             />
           </label>
+          <label htmlFor={`${baseId}-primary`}>
+            Primary Document
+            <input
+              id={`${baseId}-primary`}
+              type="file"
+              accept=".pdf,.csv"
+              onChange={e => setPrimaryFile(e.target.files?.[0] ?? null)}
+              ref={primaryInputRef}
+              required
+            />
+          </label>
+          {requirements.map(req => {
+            const inputId = `${baseId}-${req.slug}`;
+            return (
+              <label key={req.id} htmlFor={inputId}>
+                {req.name}
+                <input
+                  id={inputId}
+                  type="file"
+                  accept=".pdf,.csv"
+                  onChange={e => updateDocument(req.slug, e.target.files?.[0] ?? null)}
+                  ref={el => {
+                    documentRefs.current[req.slug] = el;
+                  }}
+                  required
+                />
+              </label>
+            );
+          })}
         </div>
+        {error && <p className="form-message form-message--error">{error}</p>}
         <div className="form-actions">
-          <button type="submit">{label}</button>
+          <button type="submit" disabled={disabled || !isComplete}>
+            {label}
+          </button>
         </div>
         {progress > 0 && <progress value={progress} max={100} />}
       </form>
@@ -161,33 +341,45 @@ const Dashboard: React.FC = () => {
                     <td className="data-table__actions">
                       <UploadForm
                         label="Offer"
-                        onSubmit={details =>
+                        requirements={requirements.offer}
+                        disabled={!requirementsLoaded}
+                        onSubmit={({ details, primaryFile, documents }) =>
                           submitOffer(auth.token, {
                             id: Date.now(),
                             realtor: auth.username,
                             property_id: s.id,
                             details,
+                            file: primaryFile,
+                            documents,
                           })
                         }
                       />
                       <UploadForm
                         label="Account Opening"
-                        onSubmit={details =>
+                        requirements={requirements.account_opening}
+                        disabled={!requirementsLoaded}
+                        onSubmit={({ details, primaryFile, documents }) =>
                           submitAccountOpening(auth.token, {
                             id: Date.now(),
                             realtor: auth.username,
                             details,
+                            file: primaryFile,
+                            documents,
                           })
                         }
                       />
                       <UploadForm
                         label="Property Application"
-                        onSubmit={details =>
+                        requirements={requirements.property_application}
+                        disabled={!requirementsLoaded}
+                        onSubmit={({ details, primaryFile, documents }) =>
                           submitPropertyApplication(auth.token, {
                             id: Date.now(),
                             realtor: auth.username,
                             property_id: s.id,
                             details,
+                            file: primaryFile,
+                            documents,
                           })
                         }
                       />

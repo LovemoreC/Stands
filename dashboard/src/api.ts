@@ -127,6 +127,7 @@ export interface DocumentRequirement {
   id: number;
   name: string;
   applies_to: DocumentWorkflow;
+  slug: string;
   order: number;
 }
 
@@ -286,24 +287,35 @@ export async function getMandateHistory(token: string, id: number) {
 
 export async function submitOffer(
   token: string,
-  offer: { id: number; realtor: string; property_id: number; details?: string; file?: File }
+  offer: {
+    id: number;
+    realtor: string;
+    property_id: number;
+    details?: string;
+    file?: File | null;
+    documents?: Record<string, File>;
+  }
 ) {
   const opts: RequestInit = { method: 'POST' };
-  const isFileUpload = Boolean(offer.file);
-  if (offer.file) {
+  const documents = offer.documents ?? {};
+  const hasUploads = Boolean(offer.file) || Object.keys(documents).length > 0;
+  if (hasUploads) {
     const form = new FormData();
     form.append('id', String(offer.id));
     form.append('realtor', offer.realtor);
     form.append('property_id', String(offer.property_id));
     if (offer.details) form.append('details', offer.details);
-    form.append('file', offer.file);
+    if (offer.file) form.append('file', offer.file);
+    Object.entries(documents).forEach(([slug, file]) => {
+      form.append(slug, file);
+    });
     opts.body = form;
     opts.headers = { Authorization: `Bearer ${token}` };
   } else {
-    opts.body = JSON.stringify(offer);
+    opts.body = JSON.stringify({ ...offer, documents: undefined });
     opts.headers = headers(token);
   }
-  const endpoint = isFileUpload ? '/applications/offer' : '/offers';
+  const endpoint = hasUploads ? '/applications/offer' : '/offers';
   const res = await fetch(apiUrl(endpoint), opts);
   if (!res.ok) throw new Error('Failed to submit offer');
   return res.json();
@@ -311,23 +323,27 @@ export async function submitOffer(
 
 export async function submitAccountOpening(
   token: string,
-  req: { id: number; realtor: string; details?: string; file?: File }
+  req: { id: number; realtor: string; details?: string; file?: File | null; documents?: Record<string, File> }
 ) {
   const opts: RequestInit = { method: 'POST' };
-  const isFileUpload = Boolean(req.file);
-  if (req.file) {
+  const documents = req.documents ?? {};
+  const hasUploads = Boolean(req.file) || Object.keys(documents).length > 0;
+  if (hasUploads) {
     const form = new FormData();
     form.append('id', String(req.id));
     form.append('realtor', req.realtor);
     if (req.details) form.append('details', req.details);
-    form.append('file', req.file);
+    if (req.file) form.append('file', req.file);
+    Object.entries(documents).forEach(([slug, file]) => {
+      form.append(slug, file);
+    });
     opts.body = form;
     opts.headers = { Authorization: `Bearer ${token}` };
   } else {
-    opts.body = JSON.stringify(req);
+    opts.body = JSON.stringify({ ...req, documents: undefined });
     opts.headers = headers(token);
   }
-  const endpoint = isFileUpload ? '/applications/account' : '/account-openings';
+  const endpoint = hasUploads ? '/applications/account' : '/account-openings';
   const res = await fetch(apiUrl(endpoint), opts);
   if (!res.ok) throw new Error('Failed to submit account opening');
   return res.json();
@@ -335,24 +351,35 @@ export async function submitAccountOpening(
 
 export async function submitPropertyApplication(
   token: string,
-  app: { id: number; realtor: string; property_id: number; details?: string; file?: File }
+  app: {
+    id: number;
+    realtor: string;
+    property_id: number;
+    details?: string;
+    file?: File | null;
+    documents?: Record<string, File>;
+  }
 ) {
   const opts: RequestInit = { method: 'POST' };
-  const isFileUpload = Boolean(app.file);
-  if (app.file) {
+  const documents = app.documents ?? {};
+  const hasUploads = Boolean(app.file) || Object.keys(documents).length > 0;
+  if (hasUploads) {
     const form = new FormData();
     form.append('id', String(app.id));
     form.append('realtor', app.realtor);
     form.append('property_id', String(app.property_id));
     if (app.details) form.append('details', app.details);
-    form.append('file', app.file);
+    if (app.file) form.append('file', app.file);
+    Object.entries(documents).forEach(([slug, file]) => {
+      form.append(slug, file);
+    });
     opts.body = form;
     opts.headers = { Authorization: `Bearer ${token}` };
   } else {
-    opts.body = JSON.stringify(app);
+    opts.body = JSON.stringify({ ...app, documents: undefined });
     opts.headers = headers(token);
   }
-  const endpoint = isFileUpload ? '/applications/property' : '/property-applications';
+  const endpoint = hasUploads ? '/applications/property' : '/property-applications';
   const res = await fetch(apiUrl(endpoint), opts);
   if (!res.ok) throw new Error('Failed to submit property application');
   return res.json();

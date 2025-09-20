@@ -6,16 +6,17 @@ from datetime import datetime, timedelta
 import hashlib
 import hmac
 import csv
-import json
 import base64
 import uuid
 import os
 import logging
 from io import BytesIO
+import re
 import jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from openpyxl import load_workbook, Workbook
+from starlette.datastructures import FormData, UploadFile as StarletteUploadFile
 from .database import init_db, get_session, SessionLocal
 from .mailer import (
     MailRequest,
@@ -195,7 +196,7 @@ def _send_submission_email(
     subject: str,
     metadata: Dict[str, Optional[str | int]],
     primary_document: Optional[UploadedFile],
-    required_documents: Dict[int, UploadedFile] | None,
+    required_documents: Dict[str, UploadedFile] | None,
     repos: Repositories,
 ) -> None:
     if not DEPOSIT_ACCOUNTS_RECIPIENTS:
@@ -434,6 +435,7 @@ def create_document_requirement(
         id=requirement_id,
         name=payload.name,
         applies_to=payload.applies_to,
+        slug=_derive_unique_slug(repos, payload.applies_to, payload.name),
         order=order,
     )
     repos.document_requirements.add(requirement)
@@ -451,11 +453,28 @@ def update_document_requirement(
     if not requirement:
         raise HTTPException(status_code=404, detail="Document requirement not found")
     update_data = requirement.model_dump()
+    target_workflow = requirement.applies_to
+    slug = requirement.slug
     if payload.name is not None:
         update_data["name"] = payload.name
     if payload.applies_to is not None and payload.applies_to != requirement.applies_to:
+        target_workflow = payload.applies_to
         update_data["applies_to"] = payload.applies_to
         update_data["order"] = _next_requirement_order(repos, payload.applies_to)
+    if target_workflow != requirement.applies_to:
+        conflict = any(
+            req.slug == slug and req.id != requirement.id
+            for req in repos.document_requirements.list()
+            if req.applies_to == target_workflow
+        )
+        if conflict:
+            slug = _derive_unique_slug(
+                repos,
+                target_workflow,
+                update_data["name"],
+                exclude_id=requirement.id,
+            )
+    update_data["slug"] = slug
     updated = DocumentRequirement(**update_data)
     repos.document_requirements.add(updated)
     return updated
@@ -944,7 +963,7 @@ def _requirements_for_workflow(
 
 def _validate_required_documents(
     workflow: DocumentWorkflow,
-    provided: Dict[int, UploadedFile] | None,
+    provided: Dict[str, UploadedFile] | None,
     repos: Repositories,
 ) -> None:
     provided = provided or {}
@@ -952,37 +971,21 @@ def _validate_required_documents(
     missing = [
         req.name
         for req in requirements
-        if req.id not in provided or not provided[req.id].content
+        if req.slug not in provided or not provided[req.slug].content
     ]
     if missing:
         raise HTTPException(
             status_code=400,
             detail=f"Missing required documents: {', '.join(missing)}",
         )
-
-
-def _parse_required_documents(raw: str | None) -> Dict[int, UploadedFile]:
-    if not raw:
-        return {}
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail="Invalid document payload") from exc
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=400, detail="Invalid document payload")
-    parsed: Dict[int, UploadedFile] = {}
-    for key, value in data.items():
-        try:
-            requirement_id = int(key)
-        except (TypeError, ValueError) as exc:
-            raise HTTPException(status_code=400, detail="Invalid requirement id") from exc
-        if not isinstance(value, dict):
-            raise HTTPException(status_code=400, detail="Invalid document payload")
-        try:
-            parsed[requirement_id] = UploadedFile(**value)
-        except (TypeError, ValidationError) as exc:
-            raise HTTPException(status_code=400, detail="Invalid document payload") from exc
-    return parsed
+    unexpected = sorted(
+        key for key in provided.keys() if key not in {req.slug for req in requirements}
+    )
+    if unexpected:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown document fields: {', '.join(unexpected)}",
+        )
 
 
 def _allocate_requirement_id(repos: Repositories) -> int:
@@ -1001,14 +1004,75 @@ def _next_requirement_order(repos: Repositories, workflow: DocumentWorkflow) -> 
     return max(req.order for req in existing) + 1
 
 
+def _slugify_requirement_name(name: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "_", name.strip().lower())
+    normalized = normalized.strip("_") or "document"
+    return normalized
+
+
+def _derive_unique_slug(
+    repos: Repositories,
+    workflow: DocumentWorkflow,
+    name: str,
+    *,
+    exclude_id: Optional[int] = None,
+) -> str:
+    base = _slugify_requirement_name(name)
+    existing = {
+        req.slug
+        for req in repos.document_requirements.list()
+        if req.applies_to == workflow and (exclude_id is None or req.id != exclude_id)
+    }
+    if base not in existing:
+        return base
+    suffix = 2
+    while True:
+        candidate = f"{base}_{suffix}"
+        if candidate not in existing:
+            return candidate
+        suffix += 1
+
+
+async def _encode_upload_file(
+    upload: UploadFile | StarletteUploadFile,
+) -> UploadedFile:
+    contents = await upload.read()
+    encoded = base64.b64encode(contents).decode("utf-8")
+    return UploadedFile(
+        filename=upload.filename or "",
+        content_type=upload.content_type or "application/octet-stream",
+        content=encoded,
+    )
+
+
+async def _collect_required_documents(
+    form: FormData,
+    workflow: DocumentWorkflow,
+    repos: Repositories,
+) -> Dict[str, UploadedFile]:
+    documents: Dict[str, UploadedFile] = {}
+    requirements = _requirements_for_workflow(repos, workflow)
+    for requirement in requirements:
+        value = form.get(requirement.slug)
+        if value is None:
+            continue
+        if not isinstance(value, (UploadFile, StarletteUploadFile)):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid upload for requirement '{requirement.name}'",
+            )
+        documents[requirement.slug] = await _encode_upload_file(value)
+    return documents
+
+
 @app.post("/applications/offer", response_model=Offer)
-def upload_offer_application(
+async def upload_offer_application(
+    request: Request,
     id: int = Form(...),
     realtor: str = Form(...),
     property_id: int = Form(...),
     details: Optional[str] = Form(None),
     file: UploadFile = File(...),
-    requirement_documents: Optional[str] = Form(None),
     agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
@@ -1019,18 +1083,17 @@ def upload_offer_application(
     filename = file.filename or ""
     if not (filename.endswith(".pdf") or filename.endswith(".csv")):
         raise HTTPException(status_code=400, detail="Unsupported file type")
-    encoded = base64.b64encode(file.file.read()).decode("utf-8")
+    encoded = base64.b64encode(await file.read()).decode("utf-8")
+    if not encoded:
+        raise HTTPException(status_code=400, detail="Primary document cannot be empty")
     document = UploadedFile(
         filename=filename, content_type=file.content_type, content=encoded
     )
-    parsed_documents = _parse_required_documents(requirement_documents)
-    if not parsed_documents:
-        requirements = _requirements_for_workflow(repos, DocumentWorkflow.OFFER)
-        if len(requirements) == 1:
-            parsed_documents = {requirements[0].id: document}
-    _validate_required_documents(
-        DocumentWorkflow.OFFER, parsed_documents, repos
+    form = await request.form()
+    parsed_documents = await _collect_required_documents(
+        form, DocumentWorkflow.OFFER, repos
     )
+    _validate_required_documents(DocumentWorkflow.OFFER, parsed_documents, repos)
     offer = Offer(
         id=id,
         realtor=realtor,
@@ -1058,13 +1121,13 @@ def upload_offer_application(
 
 
 @app.post("/applications/property", response_model=PropertyApplication)
-def upload_property_application(
+async def upload_property_application(
+    request: Request,
     id: int = Form(...),
     realtor: str = Form(...),
     property_id: int = Form(...),
     details: Optional[str] = Form(None),
     file: UploadFile = File(...),
-    requirement_documents: Optional[str] = Form(None),
     agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
@@ -1075,17 +1138,16 @@ def upload_property_application(
     filename = file.filename or ""
     if not (filename.endswith(".pdf") or filename.endswith(".csv")):
         raise HTTPException(status_code=400, detail="Unsupported file type")
-    encoded = base64.b64encode(file.file.read()).decode("utf-8")
+    encoded = base64.b64encode(await file.read()).decode("utf-8")
+    if not encoded:
+        raise HTTPException(status_code=400, detail="Primary document cannot be empty")
     document = UploadedFile(
         filename=filename, content_type=file.content_type, content=encoded
     )
-    parsed_documents = _parse_required_documents(requirement_documents)
-    if not parsed_documents:
-        requirements = _requirements_for_workflow(
-            repos, DocumentWorkflow.PROPERTY_APPLICATION
-        )
-        if len(requirements) == 1:
-            parsed_documents = {requirements[0].id: document}
+    form = await request.form()
+    parsed_documents = await _collect_required_documents(
+        form, DocumentWorkflow.PROPERTY_APPLICATION, repos
+    )
     _validate_required_documents(
         DocumentWorkflow.PROPERTY_APPLICATION, parsed_documents, repos
     )
@@ -1118,12 +1180,12 @@ def upload_property_application(
 
 
 @app.post("/applications/account", response_model=AccountOpening)
-def upload_account_opening(
+async def upload_account_opening(
+    request: Request,
     id: int = Form(...),
     realtor: str = Form(...),
     details: Optional[str] = Form(None),
     file: UploadFile = File(...),
-    requirement_documents: Optional[str] = Form(None),
     agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
@@ -1134,17 +1196,16 @@ def upload_account_opening(
     filename = file.filename or ""
     if not (filename.endswith(".pdf") or filename.endswith(".csv")):
         raise HTTPException(status_code=400, detail="Unsupported file type")
-    encoded = base64.b64encode(file.file.read()).decode("utf-8")
+    encoded = base64.b64encode(await file.read()).decode("utf-8")
+    if not encoded:
+        raise HTTPException(status_code=400, detail="Primary document cannot be empty")
     document = UploadedFile(
         filename=filename, content_type=file.content_type, content=encoded
     )
-    parsed_documents = _parse_required_documents(requirement_documents)
-    if not parsed_documents:
-        requirements = _requirements_for_workflow(
-            repos, DocumentWorkflow.ACCOUNT_OPENING
-        )
-        if len(requirements) == 1:
-            parsed_documents = {requirements[0].id: document}
+    form = await request.form()
+    parsed_documents = await _collect_required_documents(
+        form, DocumentWorkflow.ACCOUNT_OPENING, repos
+    )
     _validate_required_documents(
         DocumentWorkflow.ACCOUNT_OPENING, parsed_documents, repos
     )

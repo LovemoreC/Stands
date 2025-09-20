@@ -57,3 +57,39 @@ def test_upload_applications(client):
     )
     assert resp.status_code == 200
     assert resp.json()["document"]["filename"] == "acc.pdf"
+
+
+def test_missing_required_document_is_rejected(client):
+    tokens = setup_agents(client)
+    admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
+    realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
+
+    requirement = client.post(
+        "/document-requirements",
+        json={"name": "Government ID", "applies_to": "property_application"},
+        headers=admin_headers,
+    ).json()
+
+    base_files = {"file": ("prop.pdf", b"data", "application/pdf")}
+    data = {"id": "55", "realtor": "realtor", "property_id": "9"}
+
+    resp = client.post(
+        "/applications/property",
+        data=data,
+        files=base_files,
+        headers=realtor_headers,
+    )
+    assert resp.status_code == 400
+    assert "Missing required documents" in resp.json()["detail"]
+
+    files = {
+        "file": ("prop.pdf", b"data", "application/pdf"),
+        requirement["slug"]: ("id.pdf", b"identity", "application/pdf"),
+    }
+    resp = client.post(
+        "/applications/property",
+        data=data,
+        files=files,
+        headers=realtor_headers,
+    )
+    assert resp.status_code == 200
