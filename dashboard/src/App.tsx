@@ -23,6 +23,8 @@ import ImportedLoanAccounts from './pages/ImportedLoanAccounts';
 import ContactSettingsPage from './pages/ContactSettings';
 import CustomerProfileAgent from './pages/CustomerProfileAgent';
 import CustomerProfilesManage from './pages/CustomerProfilesManage';
+import PropertyApplicationsQueue from './pages/PropertyApplicationsQueue';
+import Agreements from './pages/Agreements';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -37,6 +39,8 @@ const App: React.FC = () => {
           { to: '/document-requirements', label: 'Document Requirements' },
           { to: '/contact-settings', label: 'Contact Settings' },
           { to: '/agents', label: 'Agents' },
+          { to: '/property-applications', label: 'Property Applications' },
+          { to: '/agreements', label: 'Agreements' },
           { to: '/account-openings', label: 'Account Openings' },
           { to: '/customer-profiles/manage', label: 'Customer Profiles' },
           { to: '/loan-applications', label: 'Loan Applications' },
@@ -49,6 +53,8 @@ const App: React.FC = () => {
       : auth.role === 'manager'
         ? [
             { to: '/manager-dashboard', label: 'Dashboard' },
+            { to: '/property-applications', label: 'Property Applications' },
+            { to: '/agreements', label: 'Agreements' },
             { to: '/account-openings', label: 'Account Openings' },
             { to: '/customer-profiles/manage', label: 'Customer Profiles' },
             { to: '/imported-deposits', label: 'Imported Deposits' },
@@ -60,6 +66,7 @@ const App: React.FC = () => {
             ? [
                 { to: '/dashboard', label: 'Dashboard' },
                 { to: '/submit', label: 'New Submission' },
+                { to: '/agreements', label: 'Agreements' },
                 { to: '/customer-profiles', label: 'Customer Profiles' },
               ]
             : []
@@ -141,6 +148,22 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute roles={["admin"]}>
                   <Mandates />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/agreements"
+              element={
+                <ProtectedRoute roles={["admin", "manager", "agent"]}>
+                  <Agreements />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/property-applications"
+              element={
+                <ProtectedRoute roles={["admin", "manager"]}>
+                  <PropertyApplicationsQueue />
                 </ProtectedRoute>
               }
             />

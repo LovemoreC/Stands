@@ -73,6 +73,7 @@ from .models import (
     ContactSettings,
     ContactSettingsResponse,
     CustomerProfile,
+    LoanTeamReply,
 )
 
 logger = logging.getLogger(__name__)
@@ -198,6 +199,15 @@ def _normalize_recipients(recipients: List[str]) -> List[str]:
         normalized.append(trimmed)
         seen.add(key)
     return normalized
+
+
+def _parse_loan_team_decision(body: str) -> LoanDecision | None:
+    normalized = body.lower()
+    if "approved" in normalized:
+        return LoanDecision.APPROVED
+    if "declined" in normalized or "rejected" in normalized:
+        return LoanDecision.REJECTED
+    return None
 
 
 def _extract_recipients(data: Any) -> List[str]:
@@ -1150,6 +1160,31 @@ def _agreement_ids_for_loans(loan_ids: List[int], repos: Repositories) -> List[i
     )
 
 
+def _ensure_agreement_for_application(
+    application: LoanApplication, repos: Repositories
+) -> None:
+    if not application.property_id:
+        return
+    if repos.agreements.get(application.id):
+        return
+    stand = repos.stands.get(application.property_id)
+    if not stand:
+        return
+    content = f"Agreement for property {stand.name} with loan {application.id}"
+    timestamp = datetime.utcnow().isoformat()
+    agreement = Agreement(
+        id=application.id,
+        loan_application_id=application.id,
+        property_id=application.property_id,
+        realtor=application.realtor,
+        document=content,
+        versions=[content],
+        audit_log=[f"{timestamp}: generated"],
+        status=AgreementStatus.DRAFT,
+    )
+    repos.agreements.add(agreement)
+
+
 def _find_account_opening_by_number(
     account_number: str, repos: Repositories
 ) -> AccountOpening | None:
@@ -1208,6 +1243,31 @@ def _touch_profile(
     new_profile = profile.model_copy(update=payload)
     repos.customer_profiles.add(new_profile)
     return new_profile
+
+
+def _normalize_document_key(filename: str, existing: set[str]) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", filename.lower()).strip("-") or "attachment"
+    candidate = base
+    counter = 1
+    while candidate in existing:
+        candidate = f"{base}-{counter}"
+        counter += 1
+    return candidate
+
+
+def _store_profile_documents(
+    profile: CustomerProfile, attachments: List[UploadedFile], repos: Repositories
+) -> CustomerProfile:
+    if not attachments:
+        return profile
+    documents = dict(profile.documents)
+    existing = set(documents.keys())
+    for attachment in attachments:
+        name = attachment.filename or "attachment"
+        key = _normalize_document_key(name, existing)
+        documents[key] = attachment
+        existing.add(key)
+    return _touch_profile(profile, repos, documents=documents)
 
 
 def _get_profile_or_404(
@@ -1357,19 +1417,6 @@ async def upload_property_application(
     repos.notifications.append(
         f"Property application {id} submitted by {realtor}"
     )
-    _send_submission_email(
-        subject=f"Property application #{id}",
-        metadata={
-            "Submission Type": "Property Application",
-            "Application ID": id,
-            "Realtor": realtor,
-            "Property ID": property_id,
-            "Details": details,
-        },
-        primary_document=application.document,
-        required_documents=application.required_documents,
-        repos=repos,
-    )
     return application
 
 
@@ -1504,20 +1551,51 @@ def submit_property_application(
     repos.notifications.append(
         f"Property application {sanitized_application.id} submitted by {sanitized_application.realtor}"
     )
+    return sanitized_application
+
+
+@app.get("/property-applications", response_model=List[PropertyApplication])
+def list_property_applications(
+    status: Optional[SubmissionStatus] = None,
+    _: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    applications = repos.applications.list()
+    if status:
+        applications = [app for app in applications if app.status == status]
+    return applications
+
+
+@app.post("/property-applications/{app_id}/approve", response_model=PropertyApplication)
+def approve_property_application(
+    app_id: int,
+    agent: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    application = repos.applications.get(app_id)
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    if application.status != SubmissionStatus.SUBMITTED:
+        raise HTTPException(status_code=400, detail="Only submitted applications can be approved")
+    application.status = SubmissionStatus.MANAGER_APPROVED
+    repos.applications.add(application)
+    repos.notifications.append(
+        f"Property application {app_id} approved by {agent.username}"
+    )
     _send_submission_email(
-        subject=f"Property application #{sanitized_application.id}",
+        subject=f"Property application #{application.id}",
         metadata={
             "Submission Type": "Property Application",
-            "Application ID": sanitized_application.id,
-            "Realtor": sanitized_application.realtor,
-            "Property ID": sanitized_application.property_id,
-            "Details": sanitized_application.details,
+            "Application ID": application.id,
+            "Realtor": application.realtor,
+            "Property ID": application.property_id,
+            "Details": application.details,
         },
-        primary_document=sanitized_application.document,
-        required_documents=sanitized_application.required_documents,
+        primary_document=application.document,
+        required_documents=application.required_documents,
         repos=repos,
     )
-    return sanitized_application
+    return application
 
 
 @app.get("/property-applications/{app_id}", response_model=PropertyApplication)
@@ -1907,6 +1985,40 @@ def submit_loan_application(
     return sanitized_application
 
 
+@app.post("/automation/loan-team-reply", response_model=LoanApplication)
+def process_loan_team_reply(
+    reply: LoanTeamReply,
+    _: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    application = repos.loan_applications.get(reply.loan_application_id)
+    if not application:
+        raise HTTPException(status_code=404, detail="Loan application not found")
+    decision = _parse_loan_team_decision(reply.body)
+    if not decision:
+        raise HTTPException(status_code=400, detail="Unable to determine decision from message")
+    application.decision = decision
+    if decision == LoanDecision.APPROVED:
+        application.status = SubmissionStatus.COMPLETED
+        application.reason = None
+        _ensure_agreement_for_application(application, repos)
+    else:
+        application.status = SubmissionStatus.REJECTED
+        application.reason = reply.body.strip() or "Declined by loan team"
+    repos.loan_applications.add(application)
+    repos.notifications.append(
+        f"Loan application {application.id} updated from loan team reply"
+    )
+    account = repos.account_openings.get(application.account_id)
+    if account and account.account_number:
+        profile = repos.customer_profiles.get(account.account_number)
+        if not profile:
+            profile = _sync_profile_from_account(account, repos)
+        if profile:
+            _store_profile_documents(profile, reply.attachments, repos)
+    return application
+
+
 @app.get("/loan-applications/{app_id}", response_model=LoanApplication)
 def get_loan_application(
     app_id: int,
@@ -1946,24 +2058,9 @@ def decide_loan_application(
     application.reason = decision.reason
     if decision.decision == LoanDecision.APPROVED:
         application.status = SubmissionStatus.COMPLETED
-        if application.property_id:
-            if repos.agreements.get(application.id):
-                raise HTTPException(status_code=400, detail="Agreement ID exists")
-            stand = repos.stands.get(application.property_id)
-            if stand:
-                content = f"Agreement for property {stand.name} with loan {application.id}"
-                timestamp = datetime.utcnow().isoformat()
-                agreement = Agreement(
-                    id=application.id,
-                    loan_application_id=application.id,
-                    property_id=application.property_id,
-                    realtor=application.realtor,
-                    document=content,
-                    versions=[content],
-                    audit_log=[f"{timestamp}: generated"],
-                    status=AgreementStatus.DRAFT,
-                )
-                repos.agreements.add(agreement)
+        if application.property_id and repos.agreements.get(application.id):
+            raise HTTPException(status_code=400, detail="Agreement ID exists")
+        _ensure_agreement_for_application(application, repos)
     else:
         application.status = SubmissionStatus.REJECTED
     repos.loan_applications.add(application)
@@ -2173,6 +2270,20 @@ def get_audit_log(
 # ---- Agreement endpoints ----
 
 
+@app.get("/agreements", response_model=List[Agreement])
+def list_agreements(
+    status: Optional[AgreementStatus] = None,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    agreements = repos.agreements.list()
+    if agent.role == AgentRole.AGENT:
+        agreements = [a for a in agreements if a.realtor == agent.username]
+    if status:
+        agreements = [a for a in agreements if a.status == status]
+    return agreements
+
+
 @app.post("/agreements", response_model=Agreement)
 def create_agreement(
     data: AgreementCreate,
@@ -2220,6 +2331,36 @@ def get_agreement(
     return agreement
 
 
+@app.get("/agreements/{agreement_id}/download")
+def download_agreement(
+    agreement_id: int,
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    agreement = repos.agreements.get(agreement_id)
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    _ensure_owner(agreement.realtor, agent)
+    if agreement.document_file:
+        data = base64.b64decode(agreement.document_file.content)
+        media_type = (
+            agreement.document_file.content_type or "application/octet-stream"
+        )
+        extension = media_type.split("/")[-1] if "/" in media_type else "bin"
+        filename = (
+            agreement.document_file.filename
+            or f"agreement-{agreement_id}.{extension}"
+        )
+    else:
+        data = agreement.document.encode("utf-8")
+        filename = f"agreement-{agreement_id}.txt"
+        media_type = "text/plain"
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{filename}\""
+    }
+    return StreamingResponse(BytesIO(data), media_type=media_type, headers=headers)
+
+
 @app.get("/agreements/{agreement_id}/document")
 def view_agreement_document(
     agreement_id: int,
@@ -2230,7 +2371,77 @@ def view_agreement_document(
     if not agreement:
         raise HTTPException(status_code=404, detail="Agreement not found")
     _ensure_owner(agreement.realtor, agent)
+    if agreement.document_file:
+        data = base64.b64decode(agreement.document_file.content)
+        return Response(content=data, media_type=agreement.document_file.content_type)
     return Response(content=agreement.document, media_type="text/plain")
+
+
+@app.post(
+    "/agreements/{agreement_id}/customer-upload-file", response_model=Agreement
+)
+async def upload_customer_agreement_file(
+    agreement_id: int,
+    file: UploadFile = File(...),
+    agent: Agent = Depends(get_current_agent),
+    repos: Repositories = Depends(get_repositories),
+):
+    agreement = repos.agreements.get(agreement_id)
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    _ensure_owner(agreement.realtor, agent)
+    encoded = await _encode_upload_file(file)
+    agreement.version_files.append(encoded)
+    agreement.document_file = encoded
+    agreement.status = AgreementStatus.PARTIALLY_SIGNED
+    timestamp = datetime.utcnow().isoformat()
+    agreement.audit_log.append(
+        f"{timestamp}: customer upload by {agent.username}"
+    )
+    repos.agreements.add(agreement)
+    loan = repos.loan_applications.get(agreement.loan_application_id)
+    if loan:
+        account = repos.account_openings.get(loan.account_id)
+        if account and account.account_number:
+            profile = repos.customer_profiles.get(account.account_number)
+            if not profile:
+                profile = _sync_profile_from_account(account, repos)
+            if profile:
+                _store_profile_documents(profile, [encoded], repos)
+    return agreement
+
+
+@app.post(
+    "/agreements/{agreement_id}/manager-upload-file", response_model=Agreement
+)
+async def upload_manager_agreement_file(
+    agreement_id: int,
+    file: UploadFile = File(...),
+    agent: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    agreement = repos.agreements.get(agreement_id)
+    if not agreement:
+        raise HTTPException(status_code=404, detail="Agreement not found")
+    encoded = await _encode_upload_file(file)
+    agreement.version_files.append(encoded)
+    agreement.document_file = encoded
+    agreement.status = AgreementStatus.SIGNED
+    timestamp = datetime.utcnow().isoformat()
+    agreement.audit_log.append(
+        f"{timestamp}: manager upload by {agent.username}"
+    )
+    repos.agreements.add(agreement)
+    loan = repos.loan_applications.get(agreement.loan_application_id)
+    if loan:
+        account = repos.account_openings.get(loan.account_id)
+        if account and account.account_number:
+            profile = repos.customer_profiles.get(account.account_number)
+            if not profile:
+                profile = _sync_profile_from_account(account, repos)
+            if profile:
+                _store_profile_documents(profile, [encoded], repos)
+    return agreement
 
 
 @app.post("/agreements/{agreement_id}/sign", response_model=Agreement)

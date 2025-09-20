@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '../auth';
 import {
   CustomerProfile,
+  StoredFile,
   getCustomerProfile,
   requestProfileDeletion,
 } from '../api';
@@ -12,6 +13,24 @@ const CustomerProfileAgent: React.FC = () => {
   const [profile, setProfile] = React.useState<CustomerProfile | null>(null);
   const [status, setStatus] = React.useState('');
   const [error, setError] = React.useState('');
+
+  const handleDownloadDocument = (label: string, file: StoredFile) => {
+    const byteString = window.atob(file.content);
+    const len = byteString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i += 1) {
+      bytes[i] = byteString.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: file.content_type || 'application/octet-stream' });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = file.filename || label;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
+  };
 
   const handleLookup: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
@@ -91,6 +110,23 @@ const CustomerProfileAgent: React.FC = () => {
                 <dd>{profile.deletion_requested_at ?? 'Unknown'}</dd>
               </>
             )}
+            <dt>Documents</dt>
+            <dd>
+              {profile.documents && Object.keys(profile.documents).length > 0 ? (
+                <ul>
+                  {Object.entries(profile.documents).map(([key, file]) => (
+                    <li key={key}>
+                      {file.filename || key}{' '}
+                      <button type="button" onClick={() => handleDownloadDocument(key, file)}>
+                        Download
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span>No uploaded documents</span>
+              )}
+            </dd>
           </dl>
           <button
             type="button"
