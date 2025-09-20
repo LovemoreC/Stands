@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File, Form, Response
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 import hashlib
 import hmac
@@ -70,6 +70,8 @@ from .models import (
     DocumentWorkflow,
     ImportedDepositAccount,
     ImportedLoanAccount,
+    ContactSettings,
+    ContactSettingsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,9 +99,10 @@ def _parse_recipients(value: Optional[str]) -> List[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
-DEPOSIT_ACCOUNTS_RECIPIENTS = _parse_recipients(
+DEFAULT_DEPOSIT_ACCOUNTS_RECIPIENTS = _parse_recipients(
     os.environ.get("DEPOSIT_ACCOUNTS_EMAIL")
 )
+DEPOSIT_CONTACT_SETTINGS_KEY = "deposit_notifications"
 MAIL_MAX_RETRIES = max(1, int(os.environ.get("MAIL_MAX_RETRIES", "3")))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -181,6 +184,58 @@ def get_projects_service(
     return ProjectsService(repos)
 
 
+def _normalize_recipients(recipients: List[str]) -> List[str]:
+    normalized: List[str] = []
+    seen: set[str] = set()
+    for recipient in recipients:
+        trimmed = str(recipient).strip()
+        if not trimmed:
+            continue
+        key = trimmed.lower()
+        if key in seen:
+            continue
+        normalized.append(trimmed)
+        seen.add(key)
+    return normalized
+
+
+def _extract_recipients(data: Any) -> List[str]:
+    if not isinstance(data, dict):
+        return []
+    raw = data.get("recipients")
+    if not isinstance(raw, list):
+        return []
+    return _normalize_recipients([str(value) for value in raw])
+
+
+def _resolve_deposit_recipients(repos: Repositories) -> List[str]:
+    stored = repos.contact_settings.get(DEPOSIT_CONTACT_SETTINGS_KEY)
+    if stored is not None:
+        return _extract_recipients(stored)
+    return _normalize_recipients(DEFAULT_DEPOSIT_ACCOUNTS_RECIPIENTS)
+
+
+def _get_contact_settings_response(repos: Repositories) -> ContactSettingsResponse:
+    stored = repos.contact_settings.get(DEPOSIT_CONTACT_SETTINGS_KEY)
+    if stored is None:
+        return ContactSettingsResponse(
+            recipients=_normalize_recipients(DEFAULT_DEPOSIT_ACCOUNTS_RECIPIENTS),
+            configured=False,
+        )
+    return ContactSettingsResponse(recipients=_extract_recipients(stored))
+
+
+def _store_contact_settings(
+    repos: Repositories, payload: ContactSettings
+) -> ContactSettingsResponse:
+    normalized = _normalize_recipients([str(item) for item in payload.recipients])
+    repos.contact_settings.set(
+        DEPOSIT_CONTACT_SETTINGS_KEY,
+        {"recipients": normalized},
+    )
+    return ContactSettingsResponse(recipients=normalized)
+
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -199,7 +254,8 @@ def _send_submission_email(
     required_documents: Dict[str, UploadedFile] | None,
     repos: Repositories,
 ) -> None:
-    if not DEPOSIT_ACCOUNTS_RECIPIENTS:
+    recipients = _resolve_deposit_recipients(repos)
+    if not recipients:
         logger.debug(
             "Skipping email dispatch for '%s' because no recipients were configured",
             subject,
@@ -228,7 +284,7 @@ def _send_submission_email(
         lines.append(f"{key}: {normalized}")
 
     request = MailRequest(
-        to=DEPOSIT_ACCOUNTS_RECIPIENTS,
+        to=recipients,
         subject=subject,
         body="\n".join(lines),
         attachments=attachments,
@@ -378,6 +434,43 @@ def list_agents(
     repos: Repositories = Depends(get_repositories),
 ):
     return [Agent(username=agent.username, role=agent.role) for agent in repos.agents.list()]
+
+
+@app.get("/contact-settings/deposit", response_model=ContactSettingsResponse)
+def get_deposit_contact_settings(
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    return _get_contact_settings_response(repos)
+
+
+@app.post("/contact-settings/deposit", response_model=ContactSettingsResponse)
+def create_deposit_contact_settings(
+    payload: ContactSettings,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    if repos.contact_settings.get(DEPOSIT_CONTACT_SETTINGS_KEY) is not None:
+        raise HTTPException(status_code=409, detail="Contact settings already configured")
+    return _store_contact_settings(repos, payload)
+
+
+@app.put("/contact-settings/deposit", response_model=ContactSettingsResponse)
+def update_deposit_contact_settings(
+    payload: ContactSettings,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    return _store_contact_settings(repos, payload)
+
+
+@app.delete("/contact-settings/deposit", status_code=204)
+def delete_deposit_contact_settings(
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    repos.contact_settings.delete(DEPOSIT_CONTACT_SETTINGS_KEY)
+    return Response(status_code=204)
 
 
 class LoginRequest(BaseModel):

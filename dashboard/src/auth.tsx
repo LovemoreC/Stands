@@ -13,7 +13,7 @@ interface AuthContextType {
   logout: () => void;
 }
 
-const AuthContext = React.createContext<AuthContextType>({
+export const AuthContext = React.createContext<AuthContextType>({
   auth: null,
   login: () => {},
   logout: () => {},

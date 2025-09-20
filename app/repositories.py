@@ -82,6 +82,10 @@ class SimpleRepository:
         self.session.merge(row)
         self.session.commit()
 
+    def delete(self, key: Any) -> None:
+        self.session.query(Record).filter_by(store=self.store, key=str(key)).delete()
+        self.session.commit()
+
     def clear(self) -> None:
         self.session.query(Record).filter_by(store=self.store).delete()
         self.session.commit()
@@ -128,3 +132,4 @@ class Repositories:
         self.imported_loan_accounts = Repository(
             session, 'imported_loan_accounts', ImportedLoanAccount
         )
+        self.contact_settings = SimpleRepository(session, 'contact_settings')
