@@ -50,6 +50,19 @@ def test_deposit_workflow(client):
         json={"account_number": "A1", "deposit_threshold": 100},
         headers=admin_headers,
     )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Account opening must be manager approved before setup"
+
+    client.post(
+        "/account-openings/1/approve",
+        headers=admin_headers,
+    )
+
+    resp = client.post(
+        "/accounts/deposits/1/open",
+        json={"account_number": "A1", "deposit_threshold": 100},
+        headers=admin_headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["status"] == "in_progress"
 

@@ -61,6 +61,10 @@ def setup_data(client):
         json={"id": 1, "realtor": "agent"},
         headers=agent_headers,
     )
+    client.post(
+        "/account-openings/1/approve",
+        headers=admin_headers,
+    )
     client.put(
         "/account-openings/1/open",
         json={"account_number": "A1", "deposit_threshold": 100},

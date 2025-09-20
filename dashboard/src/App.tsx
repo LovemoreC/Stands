@@ -156,7 +156,7 @@ const App: React.FC = () => {
             <Route
               path="/deposits/:id"
               element={
-                <ProtectedRoute roles={["admin"]}>
+                <ProtectedRoute roles={["admin", "manager"]}>
                   <DepositDetail />
                 </ProtectedRoute>
               }
@@ -188,7 +188,7 @@ const App: React.FC = () => {
             <Route
               path="/account-openings/:id"
               element={
-                <ProtectedRoute roles={["admin"]}>
+                <ProtectedRoute roles={["admin", "manager"]}>
                   <AccountOpeningDetail />
                 </ProtectedRoute>
               }

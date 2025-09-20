@@ -137,6 +137,13 @@ def test_submission_payload_privileged_fields_are_sanitized(client):
     assert stored["deposit_threshold"] is None
     assert stored["deposits"] == []
 
+    resp = client.post(
+        "/account-openings/303/approve",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == SubmissionStatus.MANAGER_APPROVED.value
+
     resp = client.put(
         "/account-openings/303/open",
         json={"account_number": "SAFE", "deposit_threshold": 100},
@@ -208,6 +215,21 @@ def test_account_opening_deposit_tracking(client):
         json={"account_number": "ACC123", "deposit_threshold": 100},
         headers=admin_headers,
     )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Account opening must be manager approved before setup"
+
+    resp = client.post(
+        "/account-openings/2/approve",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == SubmissionStatus.MANAGER_APPROVED.value
+
+    resp = client.put(
+        "/account-openings/2/open",
+        json={"account_number": "ACC123", "deposit_threshold": 100},
+        headers=admin_headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["account_number"] == "ACC123"
     assert resp.json()["status"] == SubmissionStatus.IN_PROGRESS.value
@@ -247,6 +269,13 @@ def test_loan_application_flow(client):
     account = {"id": 3, "realtor": "realtor"}
     resp = client.post("/account-openings", json=account, headers=realtor_headers)
     assert resp.status_code == 200
+
+    resp = client.post(
+        "/account-openings/3/approve",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == SubmissionStatus.MANAGER_APPROVED.value
 
     resp = client.put(
         "/account-openings/3/open",
@@ -353,6 +382,12 @@ def test_loan_application_realtor_mismatch_rejected(client):
     resp = client.post("/account-openings", json=account, headers=realtor_headers)
     assert resp.status_code == 200
 
+    resp = client.post(
+        "/account-openings/7/approve",
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+
     resp = client.put(
         "/account-openings/7/open",
         json={"account_number": "AC7", "deposit_threshold": 100},
@@ -404,6 +439,10 @@ def test_account_opening_queue_listing(client):
         json={"id": 20, "realtor": "realtor"},
         headers=realtor_headers,
     )
+    client.post(
+        "/account-openings/10/approve",
+        headers=admin_headers,
+    )
     client.put(
         "/account-openings/10/open",
         json={"account_number": "ACC10", "deposit_threshold": 100},
@@ -444,6 +483,10 @@ def test_loan_application_queue_listing_and_agreement_generation(client):
         "/account-openings",
         json={"id": 1, "realtor": "realtor"},
         headers=realtor_headers,
+    )
+    client.post(
+        "/account-openings/1/approve",
+        headers=admin_headers,
     )
     client.put(
         "/account-openings/1/open",

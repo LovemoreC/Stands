@@ -98,6 +98,7 @@ class AgentInDB(Agent):
 
 class SubmissionStatus(str, Enum):
     SUBMITTED = "submitted"
+    MANAGER_APPROVED = "manager_approved"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     REJECTED = "rejected"
