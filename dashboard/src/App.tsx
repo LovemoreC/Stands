@@ -20,6 +20,7 @@ import LoanAccounts from './pages/LoanAccounts';
 import DocumentRequirementsPage from './pages/DocumentRequirements';
 import ImportedDeposits from './pages/ImportedDeposits';
 import ImportedLoanAccounts from './pages/ImportedLoanAccounts';
+import ContactSettingsPage from './pages/ContactSettings';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -32,6 +33,7 @@ const App: React.FC = () => {
           { to: '/stands', label: 'Stands' },
           { to: '/mandates', label: 'Mandates' },
           { to: '/document-requirements', label: 'Document Requirements' },
+          { to: '/contact-settings', label: 'Contact Settings' },
           { to: '/agents', label: 'Agents' },
           { to: '/account-openings', label: 'Account Openings' },
           { to: '/loan-applications', label: 'Loan Applications' },
@@ -81,6 +83,14 @@ const App: React.FC = () => {
         <main className="app-content">
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route
+              path="/contact-settings"
+              element={
+                <ProtectedRoute roles={["admin"]}>
+                  <ContactSettingsPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/document-requirements"
               element={

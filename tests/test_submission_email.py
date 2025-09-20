@@ -52,6 +52,12 @@ def setup_agents(client):
 
 def test_offer_submission_dispatches_email(client, mailer_stub):
     headers = setup_agents(client)
+    resp = client.post(
+        "/contact-settings/deposit",
+        json={"recipients": ["deposits-team@example.com"]},
+        headers=headers["admin"],
+    )
+    assert resp.status_code == 200
     requirement = client.post(
         "/document-requirements",
         json={"name": "Proof of funds", "applies_to": "offer"},
@@ -88,6 +94,7 @@ def test_offer_submission_dispatches_email(client, mailer_stub):
     assert len(request.attachments) == 2
     filenames = {attachment.filename for attachment in request.attachments}
     assert filenames == {"offer.pdf", "proof.pdf"}
+    assert list(request.to) == ["deposits-team@example.com"]
 
 
 def test_account_opening_upload_dispatches_email(client, mailer_stub):

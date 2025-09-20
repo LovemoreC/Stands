@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UploadedFile(BaseModel):
@@ -271,3 +271,11 @@ class ImportedLoanAccount(ImportedAccountBase):
     principal_amount: float
     outstanding_balance: float
     interest_rate: Optional[float] = None
+
+
+class ContactSettings(BaseModel):
+    recipients: List[EmailStr]
+
+
+class ContactSettingsResponse(ContactSettings):
+    configured: bool = True

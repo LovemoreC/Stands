@@ -117,6 +117,56 @@ export async function createAgent(token: string, agent: AgentCreate) {
   return res.json() as Promise<Agent>;
 }
 
+export interface ContactSettingsPayload {
+  recipients: string[];
+}
+
+export interface ContactSettingsResponse extends ContactSettingsPayload {
+  configured: boolean;
+}
+
+export async function getDepositContactSettings(token: string) {
+  const res = await fetch(apiUrl('/contact-settings/deposit'), {
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to load contact settings');
+  return res.json() as Promise<ContactSettingsResponse>;
+}
+
+export async function createDepositContactSettings(
+  token: string,
+  payload: ContactSettingsPayload,
+) {
+  const res = await fetch(apiUrl('/contact-settings/deposit'), {
+    method: 'POST',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to create contact settings');
+  return res.json() as Promise<ContactSettingsResponse>;
+}
+
+export async function updateDepositContactSettings(
+  token: string,
+  payload: ContactSettingsPayload,
+) {
+  const res = await fetch(apiUrl('/contact-settings/deposit'), {
+    method: 'PUT',
+    headers: headers(token),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to update contact settings');
+  return res.json() as Promise<ContactSettingsResponse>;
+}
+
+export async function deleteDepositContactSettings(token: string) {
+  const res = await fetch(apiUrl('/contact-settings/deposit'), {
+    method: 'DELETE',
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to delete contact settings');
+}
+
 export type DocumentWorkflow =
   | 'offer'
   | 'property_application'
