@@ -4,6 +4,16 @@ Simple FastAPI service that allows a Property Sales Manager to manage real estat
 It also supports submission workflows for offers, property applications, and account opening requests with
 basic status tracking and notification storage.
 
+## Account Opening Workflow
+
+Realtors capture account opening requests from the dashboard or by submitting the multipart form at
+`POST /applications/account`. The initial submission only stores the request and marks it as `submitted`.
+Managers review new requests, upload any missing documents, and approve them via the
+`POST /account-openings/{id}/approve` (or `/applications/account/{id}/approve` for file uploads) endpoints.
+Approval sets the status to `manager_approved`, records a notification, and triggers the email dispatch to the
+deposit mailbox. Once a request is approved, management can provision the target account and track incoming
+deposits using the existing `/account-openings/{id}/open` and `/account-openings/{id}/deposit` endpoints.
+
 ## Setup
 
 ```

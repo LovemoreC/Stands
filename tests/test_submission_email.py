@@ -115,6 +115,14 @@ def test_account_opening_upload_dispatches_email(client, mailer_stub):
     )
     assert resp.status_code == 200
 
+    assert len(mailer_stub.sent_requests) == 0
+
+    resp = client.post(
+        "/applications/account/777/approve",
+        headers=headers["admin"],
+    )
+    assert resp.status_code == 200
+
     assert len(mailer_stub.sent_requests) == 1
     request = mailer_stub.sent_requests[0]
     assert request.subject == "Account opening #777"

@@ -349,6 +349,15 @@ export async function submitAccountOpening(
   return res.json();
 }
 
+export async function approveAccountOpening(token: string, id: number) {
+  const res = await fetch(apiUrl(`/account-openings/${id}/approve`), {
+    method: 'POST',
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to approve account opening');
+  return res.json();
+}
+
 export async function submitPropertyApplication(
   token: string,
   app: {

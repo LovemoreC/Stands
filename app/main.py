@@ -1215,22 +1215,11 @@ async def upload_account_opening(
         details=details,
         document=document,
         required_documents=parsed_documents,
+        status=SubmissionStatus.SUBMITTED,
     )
     repos.account_openings.add(request)
     repos.notifications.append(
         f"Account opening {id} submitted by {realtor}"
-    )
-    _send_submission_email(
-        subject=f"Account opening #{id}",
-        metadata={
-            "Submission Type": "Account Opening",
-            "Request ID": id,
-            "Realtor": realtor,
-            "Details": details,
-        },
-        primary_document=request.document,
-        required_documents=request.required_documents,
-        repos=repos,
     )
     return request
 
@@ -1390,19 +1379,47 @@ def submit_account_opening(
     repos.notifications.append(
         f"Account opening {sanitized_request.id} submitted by {sanitized_request.realtor}"
     )
+    return sanitized_request
+
+
+@app.post("/account-openings/{req_id}/approve", response_model=AccountOpening)
+def approve_account_opening(
+    req_id: int,
+    agent: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    request = repos.account_openings.get(req_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if request.status != SubmissionStatus.SUBMITTED:
+        raise HTTPException(status_code=400, detail="Only submitted requests can be approved")
+    request.status = SubmissionStatus.MANAGER_APPROVED
+    repos.account_openings.add(request)
+    repos.notifications.append(
+        f"Account opening {req_id} approved by {agent.username}"
+    )
     _send_submission_email(
-        subject=f"Account opening #{sanitized_request.id}",
+        subject=f"Account opening #{request.id}",
         metadata={
             "Submission Type": "Account Opening",
-            "Request ID": sanitized_request.id,
-            "Realtor": sanitized_request.realtor,
-            "Details": sanitized_request.details,
+            "Request ID": request.id,
+            "Realtor": request.realtor,
+            "Details": request.details,
         },
-        primary_document=sanitized_request.document,
-        required_documents=sanitized_request.required_documents,
+        primary_document=request.document,
+        required_documents=request.required_documents,
         repos=repos,
     )
-    return sanitized_request
+    return request
+
+
+@app.post("/applications/account/{req_id}/approve", response_model=AccountOpening)
+def approve_uploaded_account_opening(
+    req_id: int,
+    agent: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    return approve_account_opening(req_id=req_id, agent=agent, repos=repos)
 
 
 @app.get("/account-openings", response_model=List[AccountOpening])
@@ -1426,7 +1443,8 @@ def get_account_opening(
     request = repos.account_openings.get(req_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
-    _ensure_owner(request.realtor, agent)
+    if agent.role not in (AgentRole.ADMIN, AgentRole.MANAGER) and request.realtor != agent.username:
+        raise HTTPException(status_code=403, detail="Not authorized")
     return request
 
 
@@ -1434,7 +1452,7 @@ def get_account_opening(
 def update_account_opening_status(
     req_id: int,
     update: StatusUpdate,
-    _: Agent = Depends(require_admin),
+    _: Agent = Depends(require_management),
     repos: Repositories = Depends(get_repositories),
 ):
     request = repos.account_openings.get(req_id)
@@ -1449,12 +1467,21 @@ def update_account_opening_status(
 def open_account(
     req_id: int,
     details: AccountSetup,
-    _: Agent = Depends(require_admin),
+    _: Agent = Depends(require_management),
     repos: Repositories = Depends(get_repositories),
 ):
     request = repos.account_openings.get(req_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
+    if request.status not in (
+        SubmissionStatus.MANAGER_APPROVED,
+        SubmissionStatus.IN_PROGRESS,
+        SubmissionStatus.COMPLETED,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Account opening must be manager approved before setup",
+        )
     if details.deposit_threshold <= 0:
         raise HTTPException(status_code=400, detail="Deposit threshold must be positive")
     request.account_number = details.account_number
@@ -1468,7 +1495,7 @@ def open_account(
 def record_deposit(
     req_id: int,
     deposit: Deposit,
-    _: Agent = Depends(require_admin),
+    _: Agent = Depends(require_management),
     repos: Repositories = Depends(get_repositories),
 ):
     request = repos.account_openings.get(req_id)
@@ -1492,7 +1519,12 @@ def list_pending_deposits(
     return [
         o
         for o in openings
-        if o.status in (SubmissionStatus.SUBMITTED, SubmissionStatus.IN_PROGRESS)
+        if o.status
+        in (
+            SubmissionStatus.SUBMITTED,
+            SubmissionStatus.MANAGER_APPROVED,
+            SubmissionStatus.IN_PROGRESS,
+        )
     ]
 
 
@@ -1520,12 +1552,21 @@ def get_imported_deposit(
 def open_deposit_account(
     req_id: int,
     details: AccountSetup,
-    _: Agent = Depends(require_admin),
+    _: Agent = Depends(require_management),
     repos: Repositories = Depends(get_repositories),
 ):
     request = repos.account_openings.get(req_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
+    if request.status not in (
+        SubmissionStatus.MANAGER_APPROVED,
+        SubmissionStatus.IN_PROGRESS,
+        SubmissionStatus.COMPLETED,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Account opening must be manager approved before setup",
+        )
     if details.deposit_threshold <= 0:
         raise HTTPException(status_code=400, detail="Deposit threshold must be positive")
     request.account_number = details.account_number
@@ -1539,7 +1580,7 @@ def open_deposit_account(
 def record_account_deposit(
     req_id: int,
     deposit: Deposit,
-    _: Agent = Depends(require_admin),
+    _: Agent = Depends(require_management),
     repos: Repositories = Depends(get_repositories),
 ):
     request = repos.account_openings.get(req_id)

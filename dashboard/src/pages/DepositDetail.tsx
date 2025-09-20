@@ -5,6 +5,7 @@ import {
   getAccountOpening,
   openDepositAccount,
   recordAccountDeposit,
+  approveAccountOpening,
 } from '../api';
 
 interface AccountOpening {
@@ -25,6 +26,8 @@ const DepositDetail: React.FC = () => {
   const [deposit, setDeposit] = React.useState('');
   const [error, setError] = React.useState('');
 
+  const canManage = auth?.role === 'admin' || auth?.role === 'manager';
+
   const load = () => {
     if (auth && id) {
       getAccountOpening(auth.token, Number(id))
@@ -36,6 +39,17 @@ const DepositDetail: React.FC = () => {
   React.useEffect(load, [auth, id]);
 
   const totalDeposits = opening?.deposits.reduce((s, d) => s + d, 0) || 0;
+
+  const handleApprove = async () => {
+    if (!auth || !id) return;
+    try {
+      const req = await approveAccountOpening(auth.token, Number(id));
+      setOpening(req);
+      setError('');
+    } catch {
+      setError('Failed to approve request');
+    }
+  };
 
   const handleOpen = async () => {
     if (!auth || !id) return;
@@ -65,13 +79,32 @@ const DepositDetail: React.FC = () => {
 
   if (!opening) return <div>{error || 'Loading...'}</div>;
 
+  const canOpenAccount =
+    opening.status === 'manager_approved' ||
+    opening.status === 'in_progress' ||
+    opening.status === 'completed';
+
   return (
     <div>
       <h2>Deposit Request {opening.id}</h2>
       <p>Realtor: {opening.realtor}</p>
       <p>Status: {opening.status}</p>
 
-      {!opening.account_number && (
+      {canManage && opening.status === 'submitted' && (
+        <div>
+          <h3>Manager Approval</h3>
+          <p>Approve this request to begin account setup.</p>
+          <button type="button" onClick={handleApprove}>
+            Approve for Processing
+          </button>
+        </div>
+      )}
+
+      {!canManage && opening.status === 'submitted' && (
+        <p>This deposit request is awaiting manager approval.</p>
+      )}
+
+      {canManage && !opening.account_number && (
         <div>
           <h3>Open Account</h3>
           <input
@@ -85,7 +118,10 @@ const DepositDetail: React.FC = () => {
             value={threshold}
             onChange={e => setThreshold(e.target.value)}
           />
-          <button onClick={handleOpen} disabled={!accountNumber || !threshold}>
+          <button
+            onClick={handleOpen}
+            disabled={!accountNumber || !threshold || !canOpenAccount}
+          >
             Save
           </button>
         </div>
@@ -98,7 +134,7 @@ const DepositDetail: React.FC = () => {
           <p>
             Received {totalDeposits} / {opening.deposit_threshold}
           </p>
-          {opening.status !== 'completed' && (
+          {canManage && opening.status !== 'completed' && (
             <div>
               <input
                 placeholder="Deposit Amount"
