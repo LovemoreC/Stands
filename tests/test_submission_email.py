@@ -1,6 +1,4 @@
 import base64
-import json
-
 import pytest
 
 from app.database import drop_db, init_db
@@ -54,6 +52,11 @@ def setup_agents(client):
 
 def test_offer_submission_dispatches_email(client, mailer_stub):
     headers = setup_agents(client)
+    requirement = client.post(
+        "/document-requirements",
+        json={"name": "Proof of funds", "applies_to": "offer"},
+        headers=headers["admin"],
+    ).json()
     encoded_document = base64.b64encode(b"offer document").decode()
     encoded_requirement = base64.b64encode(b"supporting document").decode()
     payload = {
@@ -67,7 +70,7 @@ def test_offer_submission_dispatches_email(client, mailer_stub):
             "content": encoded_document,
         },
         "required_documents": {
-            1: {
+            requirement["slug"]: {
                 "filename": "proof.pdf",
                 "content_type": "application/pdf",
                 "content": encoded_requirement,
@@ -89,23 +92,19 @@ def test_offer_submission_dispatches_email(client, mailer_stub):
 
 def test_account_opening_upload_dispatches_email(client, mailer_stub):
     headers = setup_agents(client)
-    encoded_requirement = base64.b64encode(b"id doc").decode()
+    requirement = client.post(
+        "/document-requirements",
+        json={"name": "Government ID", "applies_to": "account_opening"},
+        headers=headers["admin"],
+    ).json()
     data = {
         "id": "777",
         "realtor": "realtor",
         "details": "Open account",
-        "requirement_documents": json.dumps(
-            {
-                1: {
-                    "filename": "id.pdf",
-                    "content_type": "application/pdf",
-                    "content": encoded_requirement,
-                }
-            }
-        ),
     }
     files = {
         "file": ("statement.pdf", b"statement", "application/pdf"),
+        requirement["slug"]: ("id.pdf", b"id-doc", "application/pdf"),
     }
 
     resp = client.post(

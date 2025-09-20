@@ -150,13 +150,18 @@ def test_submission_payload_privileged_fields_are_sanitized(client):
     )
     assert resp.status_code == 200
 
+    loan_requirement = client.post(
+        "/document-requirements",
+        json={"name": "Loan package", "applies_to": "loan_application"},
+        headers=admin_headers,
+    ).json()
     encoded_doc = base64.b64encode(b"doc").decode()
     loan_app_payload = {
         "id": 404,
         "realtor": "realtor",
         "account_id": 303,
         "required_documents": {
-            1: {
+            loan_requirement["slug"]: {
                 "filename": "loan.pdf",
                 "content_type": "application/pdf",
                 "content": encoded_doc,
@@ -183,7 +188,10 @@ def test_submission_payload_privileged_fields_are_sanitized(client):
     assert stored["decision"] is None
     assert stored["reason"] is None
     assert stored["loan_account_number"] is None
-    assert stored["required_documents"]["1"]["filename"] == "loan.pdf"
+    assert (
+        stored["required_documents"][loan_requirement["slug"]]["filename"]
+        == "loan.pdf"
+    )
 
 
 def test_account_opening_deposit_tracking(client):
@@ -232,7 +240,9 @@ def test_loan_application_flow(client):
         headers=admin_headers,
     )
     assert requirement_resp.status_code == 200
-    requirement_id = requirement_resp.json()["id"]
+    requirement_data = requirement_resp.json()
+    requirement_id = requirement_data["id"]
+    requirement_slug = requirement_data["slug"]
 
     account = {"id": 3, "realtor": "realtor"}
     resp = client.post("/account-openings", json=account, headers=realtor_headers)
@@ -258,7 +268,7 @@ def test_loan_application_flow(client):
         "realtor": "realtor",
         "account_id": 3,
         "required_documents": {
-            requirement_id: {
+            requirement_slug: {
                 "filename": "loan.pdf",
                 "content_type": "application/pdf",
                 "content": encoded_doc,
@@ -311,12 +321,12 @@ def test_loan_application_flow(client):
             "realtor": "realtor",
             "account_id": 3,
             "required_documents": {
-                requirement_id: {
-                    "filename": "loan2.pdf",
-                    "content_type": "application/pdf",
-                    "content": base64.b64encode(b"loan2").decode(),
-                }
-            },
+            requirement_slug: {
+                "filename": "loan2.pdf",
+                "content_type": "application/pdf",
+                "content": base64.b64encode(b"loan2").decode(),
+            }
+        },
         },
         headers=realtor_headers,
     )

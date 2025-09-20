@@ -135,7 +135,7 @@ class Offer(BaseModel):
     details: Optional[str] = None
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
     document: Optional[UploadedFile] = None
-    required_documents: Dict[int, UploadedFile] = Field(default_factory=dict)
+    required_documents: Dict[str, UploadedFile] = Field(default_factory=dict)
 
 
 class PropertyApplication(BaseModel):
@@ -145,7 +145,7 @@ class PropertyApplication(BaseModel):
     details: Optional[str] = None
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
     document: Optional[UploadedFile] = None
-    required_documents: Dict[int, UploadedFile] = Field(default_factory=dict)
+    required_documents: Dict[str, UploadedFile] = Field(default_factory=dict)
 
 
 class AccountOpening(BaseModel):
@@ -157,7 +157,7 @@ class AccountOpening(BaseModel):
     deposit_threshold: Optional[float] = None
     deposits: List[float] = Field(default_factory=list)
     document: Optional[UploadedFile] = None
-    required_documents: Dict[int, UploadedFile] = Field(default_factory=dict)
+    required_documents: Dict[str, UploadedFile] = Field(default_factory=dict)
 
 
 class LoanApplication(BaseModel):
@@ -165,7 +165,7 @@ class LoanApplication(BaseModel):
     realtor: str
     account_id: int
     property_id: Optional[int] = None
-    required_documents: Dict[int, UploadedFile] = Field(default_factory=dict)
+    required_documents: Dict[str, UploadedFile] = Field(default_factory=dict)
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
     decision: Optional[LoanDecision] = None
     reason: Optional[str] = None
@@ -183,6 +183,7 @@ class DocumentRequirement(BaseModel):
     id: int
     name: str
     applies_to: DocumentWorkflow
+    slug: str
     order: int = 0
 
 

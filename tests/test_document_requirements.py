@@ -43,6 +43,7 @@ def test_requirement_crud_and_submission_validation(client):
     )
     assert resp.status_code == 200
     requirement_one = resp.json()
+    assert requirement_one["slug"] == "signed_offer"
 
     resp = client.post(
         "/document-requirements",
@@ -51,6 +52,7 @@ def test_requirement_crud_and_submission_validation(client):
     )
     assert resp.status_code == 200
     requirement_two = resp.json()
+    assert requirement_two["slug"] == "proof_of_funds"
 
     resp = client.get(
         "/document-requirements",
@@ -104,7 +106,7 @@ def test_requirement_crud_and_submission_validation(client):
 
     encoded = base64.b64encode(b"doc").decode()
     offer_payload["required_documents"] = {
-        requirement_one["id"]: {
+        requirement_one["slug"]: {
             "filename": "offer.pdf",
             "content_type": "application/pdf",
             "content": encoded,
@@ -112,4 +114,4 @@ def test_requirement_crud_and_submission_validation(client):
     }
     resp = client.post("/offers", json=offer_payload, headers=realtor_headers)
     assert resp.status_code == 200
-    assert str(requirement_one["id"]) in resp.json()["required_documents"]
+    assert requirement_one["slug"] in resp.json()["required_documents"]
