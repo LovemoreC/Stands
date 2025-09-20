@@ -17,6 +17,12 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, ValidationError
 from openpyxl import load_workbook, Workbook
 from .database import init_db, get_session, SessionLocal
+from .mailer import (
+    MailRequest,
+    build_attachments,
+    get_mailer,
+    EmailSendError,
+)
 from .repositories import Repositories
 from .projects import ProjectsService
 from .reporting import (
@@ -82,6 +88,18 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 INITIAL_ADMIN_TOKEN = os.environ["INITIAL_ADMIN_TOKEN"]
 
 FRONTEND_ORIGINS = resolve_frontend_origins()
+
+
+def _parse_recipients(value: Optional[str]) -> List[str]:
+    if not value:
+        return []
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+DEPOSIT_ACCOUNTS_RECIPIENTS = _parse_recipients(
+    os.environ.get("DEPOSIT_ACCOUNTS_EMAIL")
+)
+MAIL_MAX_RETRIES = max(1, int(os.environ.get("MAIL_MAX_RETRIES", "3")))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -171,6 +189,76 @@ def verify_password(password: str, hashed: str) -> bool:
         return pwd_context.verify(password, hashed)
     legacy = hashlib.sha256(password.encode()).hexdigest()
     return hmac.compare_digest(legacy, hashed)
+
+
+def _send_submission_email(
+    subject: str,
+    metadata: Dict[str, Optional[str | int]],
+    primary_document: Optional[UploadedFile],
+    required_documents: Dict[int, UploadedFile] | None,
+    repos: Repositories,
+) -> None:
+    if not DEPOSIT_ACCOUNTS_RECIPIENTS:
+        logger.debug(
+            "Skipping email dispatch for '%s' because no recipients were configured",
+            subject,
+        )
+        return
+
+    attachments = []
+    if primary_document and getattr(primary_document, "content", None):
+        try:
+            attachments.extend(build_attachments([primary_document]))
+        except EmailSendError as exc:
+            logger.warning("Unable to attach primary document for '%s': %s", subject, exc)
+    if required_documents:
+        try:
+            attachments.extend(build_attachments(required_documents.values()))
+        except EmailSendError as exc:
+            logger.warning(
+                "Unable to attach required documents for '%s': %s",
+                subject,
+                exc,
+            )
+
+    lines = [subject, ""]
+    for key, value in metadata.items():
+        normalized = value if value not in (None, "") else "N/A"
+        lines.append(f"{key}: {normalized}")
+
+    request = MailRequest(
+        to=DEPOSIT_ACCOUNTS_RECIPIENTS,
+        subject=subject,
+        body="\n".join(lines),
+        attachments=attachments,
+    )
+
+    mailer = get_mailer()
+    last_error: Exception | None = None
+    for attempt in range(1, MAIL_MAX_RETRIES + 1):
+        try:
+            mailer.send(request)
+            return
+        except EmailSendError as exc:
+            last_error = exc
+            logger.exception(
+                "Email dispatch failed for '%s' on attempt %d/%d",
+                subject,
+                attempt,
+                MAIL_MAX_RETRIES,
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            last_error = exc
+            logger.exception(
+                "Unexpected error while sending '%s' on attempt %d/%d",
+                subject,
+                attempt,
+                MAIL_MAX_RETRIES,
+            )
+    if last_error:
+        message = f"Email delivery failed for {subject}: {last_error}"
+        repos.notifications.append(message)
+
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
@@ -953,6 +1041,19 @@ def upload_offer_application(
     )
     repos.offers.add(offer)
     repos.notifications.append(f"Offer {id} submitted by {realtor}")
+    _send_submission_email(
+        subject=f"Offer submission #{id}",
+        metadata={
+            "Submission Type": "Offer",
+            "Offer ID": id,
+            "Realtor": realtor,
+            "Property ID": property_id,
+            "Details": details,
+        },
+        primary_document=offer.document,
+        required_documents=offer.required_documents,
+        repos=repos,
+    )
     return offer
 
 
@@ -1000,6 +1101,19 @@ def upload_property_application(
     repos.notifications.append(
         f"Property application {id} submitted by {realtor}"
     )
+    _send_submission_email(
+        subject=f"Property application #{id}",
+        metadata={
+            "Submission Type": "Property Application",
+            "Application ID": id,
+            "Realtor": realtor,
+            "Property ID": property_id,
+            "Details": details,
+        },
+        primary_document=application.document,
+        required_documents=application.required_documents,
+        repos=repos,
+    )
     return application
 
 
@@ -1045,6 +1159,18 @@ def upload_account_opening(
     repos.notifications.append(
         f"Account opening {id} submitted by {realtor}"
     )
+    _send_submission_email(
+        subject=f"Account opening #{id}",
+        metadata={
+            "Submission Type": "Account Opening",
+            "Request ID": id,
+            "Realtor": realtor,
+            "Details": details,
+        },
+        primary_document=request.document,
+        required_documents=request.required_documents,
+        repos=repos,
+    )
     return request
 
 
@@ -1067,6 +1193,19 @@ def submit_offer(
     repos.offers.add(sanitized_offer)
     repos.notifications.append(
         f"Offer {sanitized_offer.id} submitted by {sanitized_offer.realtor}"
+    )
+    _send_submission_email(
+        subject=f"Offer submission #{sanitized_offer.id}",
+        metadata={
+            "Submission Type": "Offer",
+            "Offer ID": sanitized_offer.id,
+            "Realtor": sanitized_offer.realtor,
+            "Property ID": sanitized_offer.property_id,
+            "Details": sanitized_offer.details,
+        },
+        primary_document=sanitized_offer.document,
+        required_documents=sanitized_offer.required_documents,
+        repos=repos,
     )
     return sanitized_offer
 
@@ -1120,6 +1259,19 @@ def submit_property_application(
     repos.applications.add(sanitized_application)
     repos.notifications.append(
         f"Property application {sanitized_application.id} submitted by {sanitized_application.realtor}"
+    )
+    _send_submission_email(
+        subject=f"Property application #{sanitized_application.id}",
+        metadata={
+            "Submission Type": "Property Application",
+            "Application ID": sanitized_application.id,
+            "Realtor": sanitized_application.realtor,
+            "Property ID": sanitized_application.property_id,
+            "Details": sanitized_application.details,
+        },
+        primary_document=sanitized_application.document,
+        required_documents=sanitized_application.required_documents,
+        repos=repos,
     )
     return sanitized_application
 
@@ -1176,6 +1328,18 @@ def submit_account_opening(
     repos.account_openings.add(sanitized_request)
     repos.notifications.append(
         f"Account opening {sanitized_request.id} submitted by {sanitized_request.realtor}"
+    )
+    _send_submission_email(
+        subject=f"Account opening #{sanitized_request.id}",
+        metadata={
+            "Submission Type": "Account Opening",
+            "Request ID": sanitized_request.id,
+            "Realtor": sanitized_request.realtor,
+            "Details": sanitized_request.details,
+        },
+        primary_document=sanitized_request.document,
+        required_documents=sanitized_request.required_documents,
+        repos=repos,
     )
     return sanitized_request
 
@@ -1366,6 +1530,19 @@ def submit_loan_application(
     repos.loan_applications.add(sanitized_application)
     repos.notifications.append(
         f"Loan application {sanitized_application.id} submitted by {sanitized_application.realtor}"
+    )
+    _send_submission_email(
+        subject=f"Loan application #{sanitized_application.id}",
+        metadata={
+            "Submission Type": "Loan Application",
+            "Application ID": sanitized_application.id,
+            "Realtor": sanitized_application.realtor,
+            "Account ID": sanitized_application.account_id,
+            "Property ID": sanitized_application.property_id,
+        },
+        primary_document=None,
+        required_documents=sanitized_application.required_documents,
+        repos=repos,
     )
     return sanitized_application
 
