@@ -100,11 +100,27 @@ def test_profile_workflow_and_deletion(client):
     )
     assert resp.status_code == 200
 
+    property_application = {
+        "id": 88,
+        "realtor": "agentA",
+        "property_id": stand_id,
+    }
+    client.post(
+        "/property-applications",
+        json=property_application,
+        headers=agent_headers,
+    )
+    client.post(
+        f"/property-applications/{property_application['id']}/approve",
+        headers=admin_headers,
+    )
+
     loan_payload = {
         "id": 77,
         "realtor": "agentA",
         "account_id": 1,
         "property_id": stand_id,
+        "property_application_id": property_application["id"],
         "required_documents": {},
     }
     resp = client.post(

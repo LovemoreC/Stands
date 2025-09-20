@@ -13,6 +13,7 @@ interface FileData {
   primaryFile: File | null;
   details: string;
   propertyId?: string;
+  id?: string;
   documents: Record<string, File | null>;
 }
 
@@ -28,6 +29,7 @@ const MultiStepForm: React.FC = () => {
   const [application, setApplication] = React.useState<FileData>({
     details: '',
     propertyId: '',
+    id: '',
     primaryFile: null,
     documents: {},
   });
@@ -134,6 +136,7 @@ const MultiStepForm: React.FC = () => {
     Boolean(offer.primaryFile) &&
     requirements.offer.every(req => Boolean(offer.documents[req.slug]));
   const applicationComplete =
+    Boolean(application.id?.trim()) &&
     Boolean(application.propertyId?.trim()) &&
     Boolean(application.details.trim()) &&
     Boolean(application.primaryFile) &&
@@ -196,6 +199,11 @@ const MultiStepForm: React.FC = () => {
   const submitApplicationStep = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!requirementsLoaded) return setError('Document requirements are still loading');
+    if (!application.id) return setError('Application ID is required');
+    const parsedId = Number(application.id);
+    if (!Number.isFinite(parsedId)) {
+      return setError('Application ID must be a number');
+    }
     if (!application.propertyId) return setError('Property ID is required');
     if (!application.details) return setError('Details are required');
     const fileErr = validateFile(application.primaryFile);
@@ -211,7 +219,7 @@ const MultiStepForm: React.FC = () => {
     });
     try {
       await submitPropertyApplication(auth.token, {
-        id: Date.now(),
+        id: parsedId,
         realtor: auth.username,
         property_id: Number(application.propertyId),
         details: application.details,
@@ -222,6 +230,7 @@ const MultiStepForm: React.FC = () => {
       setApplication({
         details: '',
         propertyId: '',
+        id: '',
         primaryFile: null,
         documents: mergeDocuments(requirements.property_application, {}),
       });
@@ -346,6 +355,15 @@ const MultiStepForm: React.FC = () => {
           <form className="form-card" onSubmit={submitApplicationStep}>
             <h3 className="form-title">Property Application</h3>
             <div className="form-fields">
+              <label htmlFor="application-id">
+                Application ID
+                <input
+                  id="application-id"
+                  placeholder="Enter application ID"
+                  value={application.id}
+                  onChange={e => setApplication({ ...application, id: e.target.value })}
+                />
+              </label>
               <label htmlFor="application-property-id">
                 Property ID
                 <input

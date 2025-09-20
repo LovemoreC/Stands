@@ -77,12 +77,28 @@ def setup_data(client, admin_headers, agent_headers):
         json={"amount": 100},
         headers=admin_headers,
     )
+    property_application = {
+        "id": 201,
+        "realtor": "agentA",
+        "property_id": stand_id,
+    }
+    client.post(
+        "/property-applications",
+        json=property_application,
+        headers=agent_headers,
+    )
+    client.post(
+        f"/property-applications/{property_application['id']}/approve",
+        headers=admin_headers,
+    )
     client.post(
         "/loan-applications",
         json={
             "id": 100,
             "realtor": "agentA",
             "account_id": 100,
+            "property_application_id": property_application["id"],
+            "property_id": stand_id,
             "documents": ["doc"],
         },
         headers=agent_headers,

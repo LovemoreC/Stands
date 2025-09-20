@@ -169,6 +169,20 @@ def run_startup_tasks() -> None:
     logger.info("Configured frontend origins: %s", ", ".join(FRONTEND_ORIGINS))
     init_db()
     seed_initial_admin_if_configured()
+    migrate_loan_application_property_links()
+
+
+def migrate_loan_application_property_links() -> None:
+    """Ensure stored loan applications include the property link field."""
+
+    session = SessionLocal()
+    try:
+        repos = Repositories(session)
+        for application in repos.loan_applications.list():
+            if "property_application_id" not in application.model_fields_set:
+                repos.loan_applications.add(application)
+    finally:
+        session.close()
 
 
 @app.on_event("startup")
@@ -1185,6 +1199,26 @@ def _ensure_agreement_for_application(
     repos.agreements.add(agreement)
 
 
+def _get_property_application_for_loan(
+    application: LoanApplication, repos: Repositories
+) -> PropertyApplication | None:
+    if not application.property_application_id:
+        return None
+    return repos.applications.get(application.property_application_id)
+
+
+def _update_property_application_status(
+    application: LoanApplication,
+    status: SubmissionStatus,
+    repos: Repositories,
+) -> None:
+    property_application = _get_property_application_for_loan(application, repos)
+    if not property_application:
+        return
+    property_application.status = status
+    repos.applications.add(property_application)
+
+
 def _find_account_opening_by_number(
     account_number: str, repos: Repositories
 ) -> AccountOpening | None:
@@ -1949,19 +1983,57 @@ def submit_loan_application(
         raise HTTPException(
             status_code=400, detail="Deposits not sufficient for loan application"
         )
+    if application.property_application_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Property application reference is required",
+        )
+    property_application = repos.applications.get(application.property_application_id)
+    if not property_application:
+        raise HTTPException(status_code=404, detail="Property application not found")
+    if property_application.realtor != application.realtor:
+        raise HTTPException(
+            status_code=403,
+            detail="Property application must belong to the same realtor",
+        )
+    if property_application.status != SubmissionStatus.MANAGER_APPROVED:
+        raise HTTPException(
+            status_code=400,
+            detail="Property application must be manager approved",
+        )
     _validate_required_documents(
         DocumentWorkflow.LOAN_APPLICATION,
         application.required_documents,
         repos,
     )
-    if application.property_id and not repos.stands.get(application.property_id):
+    linked_property_id = application.property_id or property_application.property_id
+    if (
+        application.property_id
+        and property_application.property_id
+        and linked_property_id != property_application.property_id
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Property does not match the approved property application",
+        )
+    if linked_property_id and not repos.stands.get(linked_property_id):
         raise HTTPException(status_code=404, detail="Property not found")
+    property_application.status = SubmissionStatus.IN_PROGRESS
+    repos.applications.add(property_application)
+    repos.notifications.append(
+        (
+            "Property application"
+            f" {property_application.id} moved to loan review by {agent.username}"
+        )
+    )
     sanitized_application = application.model_copy(
         update={
             "status": SubmissionStatus.SUBMITTED,
             "decision": None,
             "reason": None,
             "loan_account_number": None,
+            "property_application_id": property_application.id,
+            "property_id": linked_property_id,
         }
     )
     repos.loan_applications.add(sanitized_application)
@@ -1977,6 +2049,7 @@ def submit_loan_application(
             "Realtor": sanitized_application.realtor,
             "Account ID": sanitized_application.account_id,
             "Property ID": sanitized_application.property_id,
+            "Property Application ID": sanitized_application.property_application_id,
         },
         primary_document=None,
         required_documents=sanitized_application.required_documents,
@@ -2002,9 +2075,15 @@ def process_loan_team_reply(
         application.status = SubmissionStatus.COMPLETED
         application.reason = None
         _ensure_agreement_for_application(application, repos)
+        _update_property_application_status(
+            application, SubmissionStatus.COMPLETED, repos
+        )
     else:
         application.status = SubmissionStatus.REJECTED
         application.reason = reply.body.strip() or "Declined by loan team"
+        _update_property_application_status(
+            application, SubmissionStatus.REJECTED, repos
+        )
     repos.loan_applications.add(application)
     repos.notifications.append(
         f"Loan application {application.id} updated from loan team reply"
@@ -2061,8 +2140,14 @@ def decide_loan_application(
         if application.property_id and repos.agreements.get(application.id):
             raise HTTPException(status_code=400, detail="Agreement ID exists")
         _ensure_agreement_for_application(application, repos)
+        _update_property_application_status(
+            application, SubmissionStatus.COMPLETED, repos
+        )
     else:
         application.status = SubmissionStatus.REJECTED
+        _update_property_application_status(
+            application, SubmissionStatus.REJECTED, repos
+        )
     repos.loan_applications.add(application)
     return application
 
