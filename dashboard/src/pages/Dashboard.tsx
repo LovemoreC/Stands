@@ -3,12 +3,14 @@ import { useAuth } from '../auth';
 import {
   DocumentRequirement,
   DocumentWorkflow,
+  getDashboard,
   getStands,
   listDocumentRequirements,
   submitOffer,
   submitAccountOpening,
   submitPropertyApplication,
 } from '../api';
+import { BarChartCard, LineChartCard, PieChartCard, toChartData } from '../components/ChartCard';
 
 interface MandateInfo {
   agreement_status?: string;
@@ -40,10 +42,12 @@ const Dashboard: React.FC = () => {
     loan_application: [],
   });
   const [requirementsLoaded, setRequirementsLoaded] = React.useState(false);
+  const [dashboardSummary, setDashboardSummary] = React.useState<any | null>(null);
 
   React.useEffect(() => {
     if (auth) {
       getStands(auth.token).then(setStands).catch(console.error);
+      getDashboard(auth.token).then(setDashboardSummary).catch(console.error);
     }
   }, [auth]);
 
@@ -101,6 +105,35 @@ const Dashboard: React.FC = () => {
     (!price || s.price <= Number(price)) &&
     (!status || s.status === status)
   );
+
+  const inventoryData = React.useMemo(
+    () => toChartData(dashboardSummary?.property_status),
+    [dashboardSummary?.property_status],
+  );
+  const mandateData = React.useMemo(
+    () => toChartData(dashboardSummary?.mandates),
+    [dashboardSummary?.mandates],
+  );
+  const loanData = React.useMemo(
+    () => toChartData(dashboardSummary?.loan_approvals),
+    [dashboardSummary?.loan_approvals],
+  );
+  const depositData = React.useMemo(() => {
+    const summary = dashboardSummary;
+    if (!summary) return [];
+    if (Array.isArray(summary.deposit_trend)) {
+      return summary.deposit_trend
+        .filter((point: any) => point && typeof point.value === 'number' && point.label)
+        .map((point: any) => ({ label: String(point.label), value: point.value }));
+    }
+    if (summary.deposits_breakdown && typeof summary.deposits_breakdown === 'object') {
+      return toChartData(summary.deposits_breakdown as Record<string, number>);
+    }
+    if (typeof summary.deposits === 'number') {
+      return [{ label: 'Total Deposits', value: summary.deposits }];
+    }
+    return [];
+  }, [dashboardSummary]);
 
   const UploadForm: React.FC<{
     label: string;
@@ -270,6 +303,40 @@ const Dashboard: React.FC = () => {
   return (
     <div>
       <h2>Dashboard</h2>
+      <div className="chart-grid" role="presentation">
+        {inventoryData.length > 0 && (
+          <BarChartCard
+            title="Inventory you can sell"
+            description="Properties by current availability"
+            data={inventoryData}
+            valueLabel="Properties"
+          />
+        )}
+        {mandateData.length > 0 && (
+          <PieChartCard
+            title="Mandate readiness"
+            description="Mandates tracked across your accounts"
+            data={mandateData}
+            valueLabel="Mandates"
+          />
+        )}
+        {depositData.length > 0 && (
+          <LineChartCard
+            title="Deposit inflows"
+            description="Payments received for your allocations"
+            data={depositData}
+            valueLabel="Deposits"
+          />
+        )}
+        {loanData.length > 0 && (
+          <BarChartCard
+            title="Loan outcomes"
+            description="Status of loan requests submitted by your clients"
+            data={loanData}
+            valueLabel="Applications"
+          />
+        )}
+      </div>
       <section className="form-section">
         <div className="form-card">
           <h3 className="form-title">Filter Stands</h3>

@@ -11,6 +11,7 @@ import AccountOpeningDetail from './pages/AccountOpeningDetail';
 import LoanApplications from './pages/LoanApplications';
 import LoanApprovals from './pages/LoanApprovals';
 import AdminDashboard from './pages/AdminDashboard';
+import ManagerDashboard from './pages/ManagerDashboard';
 import AgentsPage from './pages/Agents';
 import ComplianceDashboard from './pages/ComplianceDashboard';
 import Deposits from './pages/Deposits';
@@ -42,7 +43,7 @@ const App: React.FC = () => {
         ]
       : auth.role === 'manager'
         ? [
-            { to: '/admin-dashboard', label: 'Dashboard' },
+            { to: '/manager-dashboard', label: 'Dashboard' },
             { to: '/account-openings', label: 'Account Openings' },
             { to: '/imported-deposits', label: 'Imported Deposits' },
             { to: '/imported-loan-accounts', label: 'Imported Loan Accounts' },
@@ -195,8 +196,16 @@ const App: React.FC = () => {
             <Route
               path="/admin-dashboard"
               element={
-                <ProtectedRoute roles={["admin", "manager"]}>
+                <ProtectedRoute roles={["admin"]}>
                   <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manager-dashboard"
+              element={
+                <ProtectedRoute roles={["manager"]}>
+                  <ManagerDashboard />
                 </ProtectedRoute>
               }
             />
@@ -234,7 +243,9 @@ const App: React.FC = () => {
                         ? '/dashboard'
                         : auth.role === 'compliance'
                           ? '/compliance-dashboard'
-                          : '/admin-dashboard'
+                          : auth.role === 'manager'
+                            ? '/manager-dashboard'
+                            : '/admin-dashboard'
                       : '/login'
                   }
                   replace

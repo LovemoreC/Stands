@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../auth';
 import { downloadReport, getDashboard } from '../api';
+import { BarChartCard, LineChartCard, PieChartCard, toChartData } from '../components/ChartCard';
 
 const AdminDashboard: React.FC = () => {
   const { auth } = useAuth();
@@ -42,50 +43,80 @@ const AdminDashboard: React.FC = () => {
     [auth],
   );
 
+  const inventoryData = React.useMemo(() => toChartData(data?.property_status), [data?.property_status]);
+  const mandateData = React.useMemo(() => toChartData(data?.mandates), [data?.mandates]);
+  const loanData = React.useMemo(() => toChartData(data?.loan_approvals), [data?.loan_approvals]);
+  const depositData = React.useMemo(() => {
+    if (!data) return [];
+    if (Array.isArray(data.deposit_trend)) {
+      return data.deposit_trend
+        .filter((point: any) => point && typeof point.value === 'number' && point.label)
+        .map((point: any) => ({ label: String(point.label), value: point.value }));
+    }
+    if (typeof data.deposits === 'number') {
+      return [{ label: 'Total Deposits', value: data.deposits }];
+    }
+    if (data.deposits_breakdown && typeof data.deposits_breakdown === 'object') {
+      return toChartData(data.deposits_breakdown as Record<string, number>);
+    }
+    return [];
+  }, [data]);
+
   return (
     <div>
       <h2>Dashboard</h2>
-      {data?.property_status && (
-        <div>
-          <h3>Inventory</h3>
-          <ul>
-            {Object.entries(data.property_status).map(([k, v]) => (
-              <li key={k}>{k}: {v as number}</li>
-            ))}
-          </ul>
-          <button onClick={() => exportReport('properties', 'csv')}>Export CSV</button>
-          <button onClick={() => exportReport('properties', 'excel')}>Export Excel</button>
-        </div>
-      )}
-      {data?.mandates && (
-        <div>
-          <h3>Mandates</h3>
-          <ul>
-            {Object.entries(data.mandates).map(([k, v]) => (
-              <li key={k}>{k}: {v as number}</li>
-            ))}
-          </ul>
-          <button onClick={() => exportReport('mandates', 'csv')}>Export CSV</button>
-          <button onClick={() => exportReport('mandates', 'excel')}>Export Excel</button>
-        </div>
-      )}
-      {data?.deposits !== undefined && (
-        <div>
-          <h3>Deposits</h3>
-          <p>Total Deposits: {data.deposits}</p>
-        </div>
-      )}
-      {data?.loan_approvals && (
-        <div>
-          <h3>Loans</h3>
-          <ul>
-            <li>Approved: {data.loan_approvals.approved}</li>
-            <li>Rejected: {data.loan_approvals.rejected}</li>
-          </ul>
-          <button onClick={() => exportReport('loans', 'csv')}>Export CSV</button>
-          <button onClick={() => exportReport('loans', 'excel')}>Export Excel</button>
-        </div>
-      )}
+      <div className="chart-grid" role="presentation">
+        {inventoryData.length > 0 && (
+          <div>
+            <BarChartCard
+              title="Inventory overview"
+              description="Distribution of properties by lifecycle status"
+              data={inventoryData}
+              valueLabel="Properties"
+            />
+            <div className="chart-actions">
+              <button onClick={() => exportReport('properties', 'csv')}>Export CSV</button>
+              <button onClick={() => exportReport('properties', 'excel')}>Export Excel</button>
+            </div>
+          </div>
+        )}
+        {mandateData.length > 0 && (
+          <div>
+            <PieChartCard
+              title="Mandate coverage"
+              description="Active mandates grouped by status"
+              data={mandateData}
+              valueLabel="Mandates"
+            />
+            <div className="chart-actions">
+              <button onClick={() => exportReport('mandates', 'csv')}>Export CSV</button>
+              <button onClick={() => exportReport('mandates', 'excel')}>Export Excel</button>
+            </div>
+          </div>
+        )}
+        {depositData.length > 0 && (
+          <LineChartCard
+            title="Deposit performance"
+            description="Snapshot of deposits ingested across the period"
+            data={depositData}
+            valueLabel="Deposits"
+          />
+        )}
+        {loanData.length > 0 && (
+          <div>
+            <BarChartCard
+              title="Loan decisions"
+              description="Approvals and rejections for submitted loan applications"
+              data={loanData}
+              valueLabel="Applications"
+            />
+            <div className="chart-actions">
+              <button onClick={() => exportReport('loans', 'csv')}>Export CSV</button>
+              <button onClick={() => exportReport('loans', 'excel')}>Export Excel</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
