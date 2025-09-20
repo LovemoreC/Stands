@@ -16,6 +16,7 @@ import ComplianceDashboard from './pages/ComplianceDashboard';
 import Deposits from './pages/Deposits';
 import DepositDetail from './pages/DepositDetail';
 import LoanAccounts from './pages/LoanAccounts';
+import DocumentRequirementsPage from './pages/DocumentRequirements';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -27,6 +28,7 @@ const App: React.FC = () => {
           { to: '/projects', label: 'Projects' },
           { to: '/stands', label: 'Stands' },
           { to: '/mandates', label: 'Mandates' },
+          { to: '/document-requirements', label: 'Document Requirements' },
           { to: '/agents', label: 'Agents' },
           { to: '/account-openings', label: 'Account Openings' },
           { to: '/loan-applications', label: 'Loan Applications' },
@@ -69,6 +71,14 @@ const App: React.FC = () => {
         <main className="app-content">
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route
+              path="/document-requirements"
+              element={
+                <ProtectedRoute roles={["admin"]}>
+                  <DocumentRequirementsPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/agents"
               element={

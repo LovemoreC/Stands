@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -135,6 +135,7 @@ class Offer(BaseModel):
     details: Optional[str] = None
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
     document: Optional[UploadedFile] = None
+    required_documents: Dict[int, UploadedFile] = Field(default_factory=dict)
 
 
 class PropertyApplication(BaseModel):
@@ -144,6 +145,7 @@ class PropertyApplication(BaseModel):
     details: Optional[str] = None
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
     document: Optional[UploadedFile] = None
+    required_documents: Dict[int, UploadedFile] = Field(default_factory=dict)
 
 
 class AccountOpening(BaseModel):
@@ -155,6 +157,7 @@ class AccountOpening(BaseModel):
     deposit_threshold: Optional[float] = None
     deposits: List[float] = Field(default_factory=list)
     document: Optional[UploadedFile] = None
+    required_documents: Dict[int, UploadedFile] = Field(default_factory=dict)
 
 
 class LoanApplication(BaseModel):
@@ -162,11 +165,25 @@ class LoanApplication(BaseModel):
     realtor: str
     account_id: int
     property_id: Optional[int] = None
-    documents: List[str] = Field(default_factory=list)
+    required_documents: Dict[int, UploadedFile] = Field(default_factory=dict)
     status: SubmissionStatus = SubmissionStatus.SUBMITTED
     decision: Optional[LoanDecision] = None
     reason: Optional[str] = None
     loan_account_number: Optional[str] = None
+
+
+class DocumentWorkflow(str, Enum):
+    OFFER = "offer"
+    PROPERTY_APPLICATION = "property_application"
+    ACCOUNT_OPENING = "account_opening"
+    LOAN_APPLICATION = "loan_application"
+
+
+class DocumentRequirement(BaseModel):
+    id: int
+    name: str
+    applies_to: DocumentWorkflow
+    order: int = 0
 
 
 class StatusUpdate(BaseModel):

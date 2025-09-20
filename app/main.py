@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, UploadFile, File, Form, Response
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import hashlib
 import hmac
 import csv
+import json
 import base64
 import uuid
 import os
@@ -13,7 +14,7 @@ import logging
 from io import BytesIO
 import jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from openpyxl import load_workbook, Workbook
 from .database import init_db, get_session, SessionLocal
 from .repositories import Repositories
@@ -58,6 +59,8 @@ from .models import (
     AgreementSign,
     AgreementStatus,
     UploadedFile,
+    DocumentRequirement,
+    DocumentWorkflow,
 )
 
 logger = logging.getLogger(__name__)
@@ -295,6 +298,104 @@ class AuditEntry(BaseModel):
     user: str
     action: str
     status: int
+
+
+class DocumentRequirementCreate(BaseModel):
+    name: str
+    applies_to: DocumentWorkflow
+
+
+class DocumentRequirementUpdate(BaseModel):
+    name: Optional[str] = None
+    applies_to: Optional[DocumentWorkflow] = None
+
+
+class DocumentRequirementReorder(BaseModel):
+    applies_to: DocumentWorkflow
+    ordered_ids: List[int]
+
+@app.get("/document-requirements", response_model=List[DocumentRequirement])
+def list_document_requirements(
+    applies_to: DocumentWorkflow | None = None,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    if applies_to:
+        return _requirements_for_workflow(repos, applies_to)
+    requirements = repos.document_requirements.list()
+    return sorted(requirements, key=lambda r: (r.applies_to.value, r.order, r.id))
+
+
+@app.post("/document-requirements", response_model=DocumentRequirement)
+def create_document_requirement(
+    payload: DocumentRequirementCreate,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    requirement_id = _allocate_requirement_id(repos)
+    order = _next_requirement_order(repos, payload.applies_to)
+    requirement = DocumentRequirement(
+        id=requirement_id,
+        name=payload.name,
+        applies_to=payload.applies_to,
+        order=order,
+    )
+    repos.document_requirements.add(requirement)
+    return requirement
+
+
+@app.put("/document-requirements/{requirement_id}", response_model=DocumentRequirement)
+def update_document_requirement(
+    requirement_id: int,
+    payload: DocumentRequirementUpdate,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    requirement = repos.document_requirements.get(requirement_id)
+    if not requirement:
+        raise HTTPException(status_code=404, detail="Document requirement not found")
+    update_data = requirement.model_dump()
+    if payload.name is not None:
+        update_data["name"] = payload.name
+    if payload.applies_to is not None and payload.applies_to != requirement.applies_to:
+        update_data["applies_to"] = payload.applies_to
+        update_data["order"] = _next_requirement_order(repos, payload.applies_to)
+    updated = DocumentRequirement(**update_data)
+    repos.document_requirements.add(updated)
+    return updated
+
+
+@app.post("/document-requirements/reorder", response_model=List[DocumentRequirement])
+def reorder_document_requirements(
+    payload: DocumentRequirementReorder,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    requirements = _requirements_for_workflow(repos, payload.applies_to)
+    expected_ids = {req.id for req in requirements}
+    if set(payload.ordered_ids) != expected_ids:
+        raise HTTPException(status_code=400, detail="Ordered ids must match requirements")
+    for index, requirement_id in enumerate(payload.ordered_ids, start=1):
+        requirement = repos.document_requirements.get(requirement_id)
+        if not requirement or requirement.applies_to != payload.applies_to:
+            raise HTTPException(status_code=400, detail="Invalid requirement id")
+        requirement.order = index
+        repos.document_requirements.add(requirement)
+    return _requirements_for_workflow(repos, payload.applies_to)
+
+
+@app.delete("/document-requirements/{requirement_id}", response_model=DocumentRequirement)
+def delete_document_requirement(
+    requirement_id: int,
+    _: Agent = Depends(require_admin),
+    repos: Repositories = Depends(get_repositories),
+):
+    requirement = repos.document_requirements.get(requirement_id)
+    if not requirement:
+        raise HTTPException(status_code=404, detail="Document requirement not found")
+    repos.document_requirements.delete(requirement_id)
+    return requirement
+
 
 @app.post("/auth/login")
 def login(data: LoginRequest, repos: Repositories = Depends(get_repositories)):
@@ -736,6 +837,74 @@ def _ensure_owner(obj_realtor: str, agent: Agent):
         raise HTTPException(status_code=403, detail="Not authorized")
 
 
+def _requirements_for_workflow(
+    repos: Repositories, workflow: DocumentWorkflow
+) -> List[DocumentRequirement]:
+    requirements = [
+        req for req in repos.document_requirements.list() if req.applies_to == workflow
+    ]
+    return sorted(requirements, key=lambda r: r.order)
+
+
+def _validate_required_documents(
+    workflow: DocumentWorkflow,
+    provided: Dict[int, UploadedFile] | None,
+    repos: Repositories,
+) -> None:
+    provided = provided or {}
+    requirements = _requirements_for_workflow(repos, workflow)
+    missing = [
+        req.name
+        for req in requirements
+        if req.id not in provided or not provided[req.id].content
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required documents: {', '.join(missing)}",
+        )
+
+
+def _parse_required_documents(raw: str | None) -> Dict[int, UploadedFile]:
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid document payload") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Invalid document payload")
+    parsed: Dict[int, UploadedFile] = {}
+    for key, value in data.items():
+        try:
+            requirement_id = int(key)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid requirement id") from exc
+        if not isinstance(value, dict):
+            raise HTTPException(status_code=400, detail="Invalid document payload")
+        try:
+            parsed[requirement_id] = UploadedFile(**value)
+        except (TypeError, ValidationError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid document payload") from exc
+    return parsed
+
+
+def _allocate_requirement_id(repos: Repositories) -> int:
+    next_id = repos.counters.get("next_document_requirement_id")
+    if next_id is None:
+        existing = repos.document_requirements.list()
+        next_id = max((req.id for req in existing), default=0) + 1
+    repos.counters.set("next_document_requirement_id", next_id + 1)
+    return next_id
+
+
+def _next_requirement_order(repos: Repositories, workflow: DocumentWorkflow) -> int:
+    existing = _requirements_for_workflow(repos, workflow)
+    if not existing:
+        return 1
+    return max(req.order for req in existing) + 1
+
+
 @app.post("/applications/offer", response_model=Offer)
 def upload_offer_application(
     id: int = Form(...),
@@ -743,6 +912,7 @@ def upload_offer_application(
     property_id: int = Form(...),
     details: Optional[str] = Form(None),
     file: UploadFile = File(...),
+    requirement_documents: Optional[str] = Form(None),
     agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
@@ -757,12 +927,21 @@ def upload_offer_application(
     document = UploadedFile(
         filename=filename, content_type=file.content_type, content=encoded
     )
+    parsed_documents = _parse_required_documents(requirement_documents)
+    if not parsed_documents:
+        requirements = _requirements_for_workflow(repos, DocumentWorkflow.OFFER)
+        if len(requirements) == 1:
+            parsed_documents = {requirements[0].id: document}
+    _validate_required_documents(
+        DocumentWorkflow.OFFER, parsed_documents, repos
+    )
     offer = Offer(
         id=id,
         realtor=realtor,
         property_id=property_id,
         details=details,
         document=document,
+        required_documents=parsed_documents,
     )
     repos.offers.add(offer)
     repos.notifications.append(f"Offer {id} submitted by {realtor}")
@@ -776,6 +955,7 @@ def upload_property_application(
     property_id: int = Form(...),
     details: Optional[str] = Form(None),
     file: UploadFile = File(...),
+    requirement_documents: Optional[str] = Form(None),
     agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
@@ -790,12 +970,23 @@ def upload_property_application(
     document = UploadedFile(
         filename=filename, content_type=file.content_type, content=encoded
     )
+    parsed_documents = _parse_required_documents(requirement_documents)
+    if not parsed_documents:
+        requirements = _requirements_for_workflow(
+            repos, DocumentWorkflow.PROPERTY_APPLICATION
+        )
+        if len(requirements) == 1:
+            parsed_documents = {requirements[0].id: document}
+    _validate_required_documents(
+        DocumentWorkflow.PROPERTY_APPLICATION, parsed_documents, repos
+    )
     application = PropertyApplication(
         id=id,
         realtor=realtor,
         property_id=property_id,
         details=details,
         document=document,
+        required_documents=parsed_documents,
     )
     repos.applications.add(application)
     repos.notifications.append(
@@ -810,6 +1001,7 @@ def upload_account_opening(
     realtor: str = Form(...),
     details: Optional[str] = Form(None),
     file: UploadFile = File(...),
+    requirement_documents: Optional[str] = Form(None),
     agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
@@ -824,8 +1016,22 @@ def upload_account_opening(
     document = UploadedFile(
         filename=filename, content_type=file.content_type, content=encoded
     )
+    parsed_documents = _parse_required_documents(requirement_documents)
+    if not parsed_documents:
+        requirements = _requirements_for_workflow(
+            repos, DocumentWorkflow.ACCOUNT_OPENING
+        )
+        if len(requirements) == 1:
+            parsed_documents = {requirements[0].id: document}
+    _validate_required_documents(
+        DocumentWorkflow.ACCOUNT_OPENING, parsed_documents, repos
+    )
     request = AccountOpening(
-        id=id, realtor=realtor, details=details, document=document
+        id=id,
+        realtor=realtor,
+        details=details,
+        document=document,
+        required_documents=parsed_documents,
     )
     repos.account_openings.add(request)
     repos.notifications.append(
@@ -844,6 +1050,9 @@ def submit_offer(
         raise HTTPException(status_code=400, detail="Offer ID exists")
     if agent.username != offer.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    _validate_required_documents(
+        DocumentWorkflow.OFFER, offer.required_documents, repos
+    )
     sanitized_offer = offer.model_copy(
         update={"status": SubmissionStatus.SUBMITTED}
     )
@@ -892,6 +1101,11 @@ def submit_property_application(
         raise HTTPException(status_code=400, detail="Application ID exists")
     if agent.username != application.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    _validate_required_documents(
+        DocumentWorkflow.PROPERTY_APPLICATION,
+        application.required_documents,
+        repos,
+    )
     sanitized_application = application.model_copy(
         update={"status": SubmissionStatus.SUBMITTED}
     )
@@ -940,6 +1154,9 @@ def submit_account_opening(
         raise HTTPException(status_code=400, detail="Request ID exists")
     if agent.username != request.realtor:
         raise HTTPException(status_code=403, detail="Cannot submit for another realtor")
+    _validate_required_documents(
+        DocumentWorkflow.ACCOUNT_OPENING, request.required_documents, repos
+    )
     sanitized_request = request.model_copy(
         update={
             "status": SubmissionStatus.SUBMITTED,
@@ -1103,8 +1320,11 @@ def submit_loan_application(
         raise HTTPException(
             status_code=400, detail="Deposits not sufficient for loan application"
         )
-    if not application.documents:
-        raise HTTPException(status_code=400, detail="Documentation required")
+    _validate_required_documents(
+        DocumentWorkflow.LOAN_APPLICATION,
+        application.required_documents,
+        repos,
+    )
     if application.property_id and not repos.stands.get(application.property_id):
         raise HTTPException(status_code=404, detail="Property not found")
     sanitized_application = application.model_copy(

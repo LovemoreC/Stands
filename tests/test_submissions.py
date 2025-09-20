@@ -2,6 +2,8 @@ import sys
 
 sys.path.append(".")
 
+import base64
+
 from app.models import SubmissionStatus
 from app.database import drop_db, init_db
 
@@ -148,11 +150,18 @@ def test_submission_payload_privileged_fields_are_sanitized(client):
     )
     assert resp.status_code == 200
 
+    encoded_doc = base64.b64encode(b"doc").decode()
     loan_app_payload = {
         "id": 404,
         "realtor": "realtor",
         "account_id": 303,
-        "documents": ["doc"],
+        "required_documents": {
+            1: {
+                "filename": "loan.pdf",
+                "content_type": "application/pdf",
+                "content": encoded_doc,
+            }
+        },
         "status": SubmissionStatus.COMPLETED.value,
         "decision": "approved",
         "reason": "sensitive",
@@ -167,12 +176,14 @@ def test_submission_payload_privileged_fields_are_sanitized(client):
     assert body["decision"] is None
     assert body["reason"] is None
     assert body["loan_account_number"] is None
+    assert "required_documents" in body
     resp = client.get("/loan-applications/404", headers=realtor_headers)
     stored = resp.json()
     assert stored["status"] == SubmissionStatus.SUBMITTED.value
     assert stored["decision"] is None
     assert stored["reason"] is None
     assert stored["loan_account_number"] is None
+    assert stored["required_documents"]["1"]["filename"] == "loan.pdf"
 
 
 def test_account_opening_deposit_tracking(client):
@@ -215,6 +226,14 @@ def test_loan_application_flow(client):
     admin_headers = {"Authorization": f"Bearer {tokens['admin']}"}
     realtor_headers = {"Authorization": f"Bearer {tokens['realtor']}"}
 
+    requirement_resp = client.post(
+        "/document-requirements",
+        json={"name": "Signed loan form", "applies_to": "loan_application"},
+        headers=admin_headers,
+    )
+    assert requirement_resp.status_code == 200
+    requirement_id = requirement_resp.json()["id"]
+
     account = {"id": 3, "realtor": "realtor"}
     resp = client.post("/account-openings", json=account, headers=realtor_headers)
     assert resp.status_code == 200
@@ -233,7 +252,19 @@ def test_loan_application_flow(client):
     )
     assert resp.status_code == 200
 
-    loan_app = {"id": 1, "realtor": "realtor", "account_id": 3, "documents": ["doc"]}
+    encoded_doc = base64.b64encode(b"loan").decode()
+    loan_app = {
+        "id": 1,
+        "realtor": "realtor",
+        "account_id": 3,
+        "required_documents": {
+            requirement_id: {
+                "filename": "loan.pdf",
+                "content_type": "application/pdf",
+                "content": encoded_doc,
+            }
+        },
+    }
     resp = client.post("/loan-applications", json=loan_app, headers=realtor_headers)
     assert resp.status_code == 400
 
@@ -248,7 +279,7 @@ def test_loan_application_flow(client):
         "id": 1,
         "realtor": "realtor",
         "account_id": 3,
-        "documents": [],
+        "required_documents": {},
     }
     resp = client.post(
         "/loan-applications", json=loan_app_no_docs, headers=realtor_headers
@@ -257,7 +288,7 @@ def test_loan_application_flow(client):
 
     resp = client.post(
         "/loan-applications",
-        json={"id": 1, "realtor": "realtor", "account_id": 3, "documents": ["doc"]},
+        json=loan_app,
         headers=realtor_headers,
     )
     assert resp.status_code == 200
@@ -275,7 +306,18 @@ def test_loan_application_flow(client):
 
     resp = client.post(
         "/loan-applications",
-        json={"id": 2, "realtor": "realtor", "account_id": 3, "documents": ["doc2"]},
+        json={
+            "id": 2,
+            "realtor": "realtor",
+            "account_id": 3,
+            "required_documents": {
+                requirement_id: {
+                    "filename": "loan2.pdf",
+                    "content_type": "application/pdf",
+                    "content": base64.b64encode(b"loan2").decode(),
+                }
+            },
+        },
         headers=realtor_headers,
     )
     assert resp.status_code == 200

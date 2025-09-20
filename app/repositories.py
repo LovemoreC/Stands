@@ -96,6 +96,7 @@ from .models import (
     LoanApplication,
     Agreement,
     Loan,
+    DocumentRequirement,
 )
 
 
@@ -116,3 +117,6 @@ class Repositories:
         self.customer_loan_accounts = SimpleRepository(session, 'customer_loan_accounts')
         self.audit_log = ListRepository(session, 'audit_log')
         self.counters = SimpleRepository(session, 'counters')
+        self.document_requirements = Repository(
+            session, 'document_requirements', DocumentRequirement
+        )
