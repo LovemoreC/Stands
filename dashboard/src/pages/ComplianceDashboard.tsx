@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../auth';
 import { downloadReport, getAuditLog, getDashboard } from '../api';
+import { BarChartCard, LineChartCard, PieChartCard, toChartData } from '../components/ChartCard';
 
 const ComplianceDashboard: React.FC = () => {
   const { auth } = useAuth();
@@ -55,14 +56,64 @@ const ComplianceDashboard: React.FC = () => {
     [auth],
   );
 
+  const inventoryData = React.useMemo(() => toChartData(data?.property_status), [data?.property_status]);
+  const mandateData = React.useMemo(() => toChartData(data?.mandates), [data?.mandates]);
+  const depositData = React.useMemo(() => {
+    if (!data) return [];
+    if (Array.isArray(data.deposit_trend)) {
+      return data.deposit_trend
+        .filter((point: any) => point && typeof point.value === 'number' && point.label)
+        .map((point: any) => ({ label: String(point.label), value: point.value }));
+    }
+    if (data.deposits_breakdown && typeof data.deposits_breakdown === 'object') {
+      return toChartData(data.deposits_breakdown as Record<string, number>);
+    }
+    if (typeof data?.deposits === 'number') {
+      return [{ label: 'Total Deposits', value: data.deposits }];
+    }
+    return [];
+  }, [data]);
+  const loanData = React.useMemo(() => toChartData(data?.loan_approvals), [data?.loan_approvals]);
+
   return (
     <div>
       <h2>Compliance Dashboard</h2>
+      <div className="chart-grid" role="presentation">
+        {depositData.length > 0 && (
+          <LineChartCard
+            title="Deposit oversight"
+            description="Captured deposits segmented by reporting period"
+            data={depositData}
+            valueLabel="Deposits"
+          />
+        )}
+        {loanData.length > 0 && (
+          <BarChartCard
+            title="Loan approvals vs rejections"
+            description="Decision outcomes across compliance reviews"
+            data={loanData}
+            valueLabel="Applications"
+          />
+        )}
+        {mandateData.length > 0 && (
+          <PieChartCard
+            title="Mandate statuses"
+            description="Mandate health for monitored accounts"
+            data={mandateData}
+            valueLabel="Mandates"
+          />
+        )}
+        {inventoryData.length > 0 && (
+          <BarChartCard
+            title="Inventory snapshot"
+            description="Properties requiring compliance oversight"
+            data={inventoryData}
+            valueLabel="Properties"
+          />
+        )}
+      </div>
       {data && (
-        <div>
-          <p>Total Deposits: {data.deposits}</p>
-          <p>Loans Approved: {data.loan_approvals?.approved || 0}</p>
-          <p>Loans Rejected: {data.loan_approvals?.rejected || 0}</p>
+        <div className="chart-actions">
           <button onClick={() => exportReport('properties', 'csv')}>Export Properties CSV</button>
           <button onClick={() => exportReport('properties', 'excel')}>Export Properties Excel</button>
           <button onClick={() => exportReport('mandates', 'csv')}>Export Mandates CSV</button>
