@@ -61,6 +61,8 @@ from .models import (
     UploadedFile,
     DocumentRequirement,
     DocumentWorkflow,
+    ImportedDepositAccount,
+    ImportedLoanAccount,
 )
 
 logger = logging.getLogger(__name__)
@@ -206,6 +208,12 @@ def get_current_agent(
 def require_admin(agent: Agent = Depends(get_current_agent)) -> Agent:
     if agent.role != AgentRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin privileges required")
+    return agent
+
+
+def require_management(agent: Agent = Depends(get_current_agent)) -> Agent:
+    if agent.role not in (AgentRole.ADMIN, AgentRole.MANAGER):
+        raise HTTPException(status_code=403, detail="Management privileges required")
     return agent
 
 
@@ -1175,7 +1183,7 @@ def submit_account_opening(
 @app.get("/account-openings", response_model=List[AccountOpening])
 def list_account_openings(
     status: Optional[SubmissionStatus] = None,
-    _: Agent = Depends(require_admin),
+    _: Agent = Depends(require_management),
     repos: Repositories = Depends(get_repositories),
 ):
     openings = repos.account_openings.list()
@@ -1252,7 +1260,7 @@ def record_deposit(
 
 @app.get("/accounts/deposits/pending", response_model=List[AccountOpening])
 def list_pending_deposits(
-    _: Agent = Depends(require_admin),
+    _: Agent = Depends(require_management),
     repos: Repositories = Depends(get_repositories),
 ):
     openings = repos.account_openings.list()
@@ -1261,6 +1269,26 @@ def list_pending_deposits(
         for o in openings
         if o.status in (SubmissionStatus.SUBMITTED, SubmissionStatus.IN_PROGRESS)
     ]
+
+
+@app.get("/accounts/deposits/imported", response_model=List[ImportedDepositAccount])
+def list_imported_deposits(
+    _: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    return repos.imported_deposit_accounts.list()
+
+
+@app.get("/accounts/deposits/imported/{record_id}", response_model=ImportedDepositAccount)
+def get_imported_deposit(
+    record_id: str,
+    _: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    record = repos.imported_deposit_accounts.get(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Imported deposit account not found")
+    return record
 
 
 @app.post("/accounts/deposits/{req_id}/open", response_model=AccountOpening)
@@ -1469,6 +1497,26 @@ class LoanAccountRequest(BaseModel):
     agreement_id: int
 
 
+@app.get("/loan-accounts/imported", response_model=List[ImportedLoanAccount])
+def list_imported_loan_accounts(
+    _: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    return repos.imported_loan_accounts.list()
+
+
+@app.get("/loan-accounts/imported/{record_id}", response_model=ImportedLoanAccount)
+def get_imported_loan_account(
+    record_id: str,
+    _: Agent = Depends(require_management),
+    repos: Repositories = Depends(get_repositories),
+):
+    record = repos.imported_loan_accounts.get(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Imported loan account not found")
+    return record
+
+
 @app.post("/loan-accounts", response_model=dict)
 def create_loan_account(
     payload: LoanAccountRequest,
@@ -1511,7 +1559,7 @@ def list_loan_accounts(
     agent: Agent = Depends(get_current_agent),
     repos: Repositories = Depends(get_repositories),
 ):
-    if agent.role != AgentRole.ADMIN and agent.username != realtor:
+    if agent.role not in (AgentRole.ADMIN, AgentRole.MANAGER) and agent.username != realtor:
         raise HTTPException(status_code=403, detail="Not authorized")
     return repos.customer_loan_accounts.get(realtor, [])
 

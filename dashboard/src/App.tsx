@@ -17,6 +17,8 @@ import Deposits from './pages/Deposits';
 import DepositDetail from './pages/DepositDetail';
 import LoanAccounts from './pages/LoanAccounts';
 import DocumentRequirementsPage from './pages/DocumentRequirements';
+import ImportedDeposits from './pages/ImportedDeposits';
+import ImportedLoanAccounts from './pages/ImportedLoanAccounts';
 import { ProtectedRoute, useAuth } from './auth';
 
 const App: React.FC = () => {
@@ -35,9 +37,16 @@ const App: React.FC = () => {
           { to: '/loan-approvals', label: 'Loan Approvals' },
           { to: '/deposits', label: 'Deposits' },
           { to: '/loan-accounts-open', label: 'Loan Accounts' },
+          { to: '/imported-deposits', label: 'Imported Deposits' },
+          { to: '/imported-loan-accounts', label: 'Imported Loan Accounts' },
         ]
       : auth.role === 'manager'
-        ? [{ to: '/admin-dashboard', label: 'Dashboard' }]
+        ? [
+            { to: '/admin-dashboard', label: 'Dashboard' },
+            { to: '/account-openings', label: 'Account Openings' },
+            { to: '/imported-deposits', label: 'Imported Deposits' },
+            { to: '/imported-loan-accounts', label: 'Imported Loan Accounts' },
+          ]
         : auth.role === 'compliance'
           ? [{ to: '/compliance-dashboard', label: 'Dashboard' }]
           : auth.role === 'agent'
@@ -114,7 +123,7 @@ const App: React.FC = () => {
             <Route
               path="/account-openings"
               element={
-                <ProtectedRoute roles={["admin"]}>
+                <ProtectedRoute roles={["admin", "manager"]}>
                   <AccountOpenings />
                 </ProtectedRoute>
               }
@@ -148,6 +157,22 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute roles={["admin"]}>
                   <DepositDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/imported-deposits"
+              element={
+                <ProtectedRoute roles={["admin", "manager"]}>
+                  <ImportedDeposits />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/imported-loan-accounts"
+              element={
+                <ProtectedRoute roles={["admin", "manager"]}>
+                  <ImportedLoanAccounts />
                 </ProtectedRoute>
               }
             />

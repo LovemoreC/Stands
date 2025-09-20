@@ -67,6 +67,24 @@ Rows missing required fields are reported with clear error messages and skipped.
 
 **Manual verification:** Uploading a file that contains at least one invalid row now displays the backend-provided error text in the dashboard import form.
 
+## Synchronising External Bank Accounts
+
+Deposit and loan account records can be synchronised from an external core-banking system using the ingestion
+service in `app/accounts.py`. Provide adapters that expose `fetch_deposit_accounts()` and
+`fetch_loan_accounts()` methods (they can return dictionaries or the `ImportedDepositAccount`/
+`ImportedLoanAccount` Pydantic models) and pass them to the CLI runner:
+
+```bash
+python -m app.accounts --deposit-adapter myproject.adapters:DepositAdapterFactory \
+  --loan-adapter myproject.adapters:LoanAdapterFactory --source-system "Core Banking"
+```
+
+The script loads the dotted paths, instantiates the adapters (callables are invoked) and persists the returned
+records via the existing repositories. Schedule the command with cron or a containerised task runner to keep the
+read-only management dashboards up to date. When the adapters omit the source metadata, the CLI uses the
+`--source-system` value as the default audit label so every imported record retains traceability back to its
+originating system.
+
 ## Docker Compose
 
 To build and run the API and dashboard together with Docker Compose:
