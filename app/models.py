@@ -233,6 +233,8 @@ class Agreement(BaseModel):
     realtor: str
     document: str
     versions: List[str] = Field(default_factory=list)
+    document_file: Optional[UploadedFile] = None
+    version_files: List[UploadedFile] = Field(default_factory=list)
     bank_document_url: Optional[str] = None
     customer_document_url: Optional[str] = None
     status: AgreementStatus = AgreementStatus.DRAFT
@@ -288,6 +290,7 @@ class CustomerProfile(BaseModel):
     realtor: Optional[str] = None
     loan_application_ids: List[int] = Field(default_factory=list)
     agreement_ids: List[int] = Field(default_factory=list)
+    documents: Dict[str, UploadedFile] = Field(default_factory=dict)
     last_inbound_email_at: Optional[datetime] = None
     deletion_requested: bool = False
     deletion_requested_at: Optional[datetime] = None
@@ -296,3 +299,10 @@ class CustomerProfile(BaseModel):
     deletion_approved_by: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+
+class LoanTeamReply(BaseModel):
+    message_id: str
+    loan_application_id: int
+    body: str
+    attachments: List[UploadedFile] = Field(default_factory=list)

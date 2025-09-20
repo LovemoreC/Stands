@@ -444,6 +444,22 @@ export async function submitPropertyApplication(
   return res.json();
 }
 
+export async function getPropertyApplications(token: string, status?: string) {
+  const url = status ? `/property-applications?status=${status}` : '/property-applications';
+  const res = await fetch(apiUrl(url), { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load property applications');
+  return res.json();
+}
+
+export async function approvePropertyApplication(token: string, id: number) {
+  const res = await fetch(apiUrl(`/property-applications/${id}/approve`), {
+    method: 'POST',
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to approve property application');
+  return res.json();
+}
+
 export async function getAccountOpenings(token: string, status?: string) {
   const url = status ? `/account-openings?status=${status}` : '/account-openings';
   const res = await fetch(apiUrl(url), { headers: headers(token) });
@@ -660,6 +676,7 @@ export interface CustomerProfile {
   realtor?: string | null;
   loan_application_ids: number[];
   agreement_ids: number[];
+  documents?: Record<string, StoredFile>;
   last_inbound_email_at?: string | null;
   deletion_requested: boolean;
   deletion_requested_at?: string | null;
@@ -668,6 +685,78 @@ export interface CustomerProfile {
   deletion_approved_by?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface StoredFile {
+  filename: string;
+  content_type: string;
+  content: string;
+}
+
+export interface AgreementRecord {
+  id: number;
+  loan_application_id: number;
+  property_id: number;
+  realtor: string;
+  document: string;
+  versions: string[];
+  document_file?: StoredFile | null;
+  version_files?: StoredFile[];
+  bank_document_url?: string | null;
+  customer_document_url?: string | null;
+  status: string;
+  audit_log: string[];
+}
+
+export async function getAgreements(token: string, status?: string) {
+  const url = status ? `/agreements?status=${status}` : '/agreements';
+  const res = await fetch(apiUrl(url), { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load agreements');
+  return res.json() as Promise<AgreementRecord[]>;
+}
+
+export async function downloadAgreement(token: string, id: number) {
+  const res = await fetch(apiUrl(`/agreements/${id}/download`), {
+    headers: headers(token),
+  });
+  if (!res.ok) throw new Error('Failed to download agreement');
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  const filename = match ? match[1] : `agreement-${id}`;
+  return { blob, filename };
+}
+
+export async function uploadCustomerAgreementFile(
+  token: string,
+  id: number,
+  file: File,
+) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(apiUrl(`/agreements/${id}/customer-upload-file`), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error('Failed to upload agreement');
+  return res.json() as Promise<AgreementRecord>;
+}
+
+export async function uploadManagerAgreementFile(
+  token: string,
+  id: number,
+  file: File,
+) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(apiUrl(`/agreements/${id}/manager-upload-file`), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error('Failed to upload final agreement');
+  return res.json() as Promise<AgreementRecord>;
 }
 
 const profileUrl = (accountNumber: string) =>
