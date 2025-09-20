@@ -425,6 +425,58 @@ export async function recordAccountDeposit(token: string, id: number, amount: nu
   return res.json();
 }
 
+export interface SourceAuditInfo {
+  system: string;
+  reference: string;
+  ingested_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface ImportedAccountBase {
+  id: string;
+  account_number: string;
+  customer_name: string;
+  product_name?: string | null;
+  status?: string | null;
+  audit: SourceAuditInfo;
+  metadata: Record<string, unknown>;
+}
+
+export interface ImportedDepositAccount extends ImportedAccountBase {
+  balance: number;
+  currency: string;
+}
+
+export interface ImportedLoanAccount extends ImportedAccountBase {
+  principal_amount: number;
+  outstanding_balance: number;
+  interest_rate?: number | null;
+}
+
+export async function listImportedDeposits(token: string) {
+  const res = await fetch(apiUrl('/accounts/deposits/imported'), { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load imported deposits');
+  return res.json() as Promise<ImportedDepositAccount[]>;
+}
+
+export async function getImportedDeposit(token: string, id: string) {
+  const res = await fetch(apiUrl(`/accounts/deposits/imported/${id}`), { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load imported deposit');
+  return res.json() as Promise<ImportedDepositAccount>;
+}
+
+export async function listImportedLoanAccounts(token: string) {
+  const res = await fetch(apiUrl('/loan-accounts/imported'), { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load imported loan accounts');
+  return res.json() as Promise<ImportedLoanAccount[]>;
+}
+
+export async function getImportedLoanAccount(token: string, id: string) {
+  const res = await fetch(apiUrl(`/loan-accounts/imported/${id}`), { headers: headers(token) });
+  if (!res.ok) throw new Error('Failed to load imported loan account');
+  return res.json() as Promise<ImportedLoanAccount>;
+}
+
 export async function getLoanApplications(token: string, status?: string) {
   const url = status ? `/loan-applications?status=${status}` : '/loan-applications';
   const res = await fetch(apiUrl(url), { headers: headers(token) });

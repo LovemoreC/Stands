@@ -22,7 +22,7 @@ class Repository(Generic[T]):
 
     def add(self, obj: T) -> None:
         key = str(self._key(obj))
-        row = Record(store=self.store, key=key, data=obj.model_dump())
+        row = Record(store=self.store, key=key, data=obj.model_dump(mode="json"))
         self.session.merge(row)
         self.session.commit()
 
@@ -97,6 +97,8 @@ from .models import (
     Agreement,
     Loan,
     DocumentRequirement,
+    ImportedDepositAccount,
+    ImportedLoanAccount,
 )
 
 
@@ -119,4 +121,10 @@ class Repositories:
         self.counters = SimpleRepository(session, 'counters')
         self.document_requirements = Repository(
             session, 'document_requirements', DocumentRequirement
+        )
+        self.imported_deposit_accounts = Repository(
+            session, 'imported_deposit_accounts', ImportedDepositAccount
+        )
+        self.imported_loan_accounts = Repository(
+            session, 'imported_loan_accounts', ImportedLoanAccount
         )

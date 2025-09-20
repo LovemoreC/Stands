@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -239,3 +239,33 @@ class Agreement(BaseModel):
 
 class AgreementExecution(BaseModel):
     loan_account_number: str
+
+
+class SourceAuditInfo(BaseModel):
+    """Metadata describing where an imported record originated."""
+
+    system: str
+    reference: str
+    ingested_at: datetime
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ImportedAccountBase(BaseModel):
+    id: str
+    account_number: str
+    customer_name: str
+    product_name: Optional[str] = None
+    status: Optional[str] = None
+    audit: SourceAuditInfo
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ImportedDepositAccount(ImportedAccountBase):
+    balance: float
+    currency: str
+
+
+class ImportedLoanAccount(ImportedAccountBase):
+    principal_amount: float
+    outstanding_balance: float
+    interest_rate: Optional[float] = None
