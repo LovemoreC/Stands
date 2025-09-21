@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../auth';
+import SearchPanel, { SearchSuggestion } from '../components/SearchPanel';
 import {
   getLoanApplications,
   decideLoanApplication,
@@ -7,13 +8,14 @@ import {
   getPropertyApplications,
 } from '../api';
 
-interface LoanApp {
+interface LoanApplicationRecord {
   id: number;
   realtor: string;
   account_id: number;
-  property_id?: number;
+  property_id?: number | null;
   property_application_id?: number | null;
   status: string;
+  loan_account_number?: string | null;
 }
 
 interface PropertyApplicationSummary {
@@ -31,16 +33,17 @@ const formatStatus = (status?: string) =>
 
 const LoanApplications: React.FC = () => {
   const { auth } = useAuth();
-  const [apps, setApps] = React.useState<LoanApp[]>([]);
-  const [error, setError] = React.useState('');
-  const [sortKey, setSortKey] = React.useState<keyof LoanApp>('id');
-  const [ascending, setAscending] = React.useState(true);
+  const token = auth?.token;
+  const [actionError, setActionError] = React.useState('');
   const [comments, setComments] = React.useState<Record<number, string>>({});
   const [propertyStatuses, setPropertyStatuses] = React.useState<Record<number, string>>({});
 
   const loadPropertyStatuses = React.useCallback(
-    (records: LoanApp[]) => {
-      if (!auth) return;
+    async (records: LoanApplicationRecord[]) => {
+      if (!token) {
+        setPropertyStatuses({});
+        return;
+      }
       const ids = Array.from(
         new Set(
           records
@@ -52,116 +55,138 @@ const LoanApplications: React.FC = () => {
         setPropertyStatuses({});
         return;
       }
-      getPropertyApplications(auth.token)
-        .then(all => {
-          const mapping: Record<number, string> = {};
-          (all as PropertyApplicationSummary[]).forEach(item => {
-            if (ids.includes(item.id)) {
-              mapping[item.id] = item.status;
-            }
-          });
-          setPropertyStatuses(mapping);
-        })
-        .catch(() => setPropertyStatuses({}));
+      try {
+        const all = (await getPropertyApplications(token)) as PropertyApplicationSummary[];
+        const mapping: Record<number, string> = {};
+        all.forEach(item => {
+          if (ids.includes(item.id)) {
+            mapping[item.id] = item.status;
+          }
+        });
+        setPropertyStatuses(mapping);
+      } catch (err) {
+        setPropertyStatuses({});
+      }
     },
-    [auth],
+    [token],
   );
 
-  React.useEffect(() => {
-    if (auth) {
-      getLoanApplications(auth.token, 'submitted')
-        .then(data => {
-          setApps(data);
-          loadPropertyStatuses(data);
-        })
-        .catch(() => setError('Failed to load applications'));
-    }
-  }, [auth, loadPropertyStatuses]);
-
-  const sortBy = (key: keyof LoanApp) => {
-    const asc = key === sortKey ? !ascending : true;
-    setSortKey(key);
-    setAscending(asc);
-    const sorted = [...apps].sort((a, b) => {
-      const av = a[key];
-      const bv = b[key];
-      if (av < bv) return asc ? -1 : 1;
-      if (av > bv) return asc ? 1 : -1;
-      return 0;
-    });
-    setApps(sorted);
-  };
-
-  const handleDecision = (id: number, decision: 'approved' | 'rejected') => {
-    if (!auth) return;
-    const reason = comments[id];
-    decideLoanApplication(auth.token, id, { decision, reason })
-      .then(app => {
-        if (decision === 'approved' && app.property_id) {
-          generateAgreement(auth.token, {
-            id: app.id,
-            loan_application_id: app.id,
-            property_id: app.property_id,
-          }).catch(() => setError('Failed to generate agreement'));
-        }
-        setApps(prev => prev.filter(a => a.id !== id));
-        setPropertyStatuses(prev => {
-          const next = { ...prev };
-          if (app.property_application_id) {
-            delete next[app.property_application_id];
+  const fetchLoanApps = React.useCallback(
+    async (term: string) => {
+      if (!token) return [];
+      const filters = { status: 'submitted', ...(term ? { q: term } : {}) };
+      const data = (await getLoanApplications(token, filters)) as LoanApplicationRecord[];
+      setComments(prev => {
+        const next: Record<number, string> = {};
+        data.forEach(app => {
+          if (prev[app.id]) {
+            next[app.id] = prev[app.id];
           }
+        });
+        return next;
+      });
+      void loadPropertyStatuses(data);
+      return data;
+    },
+    [token, loadPropertyStatuses],
+  );
+
+  const fetchSuggestions = React.useCallback(
+    async (term: string) => {
+      if (!token) return [];
+      const results = (await getLoanApplications(token, {
+        status: 'submitted',
+        q: term,
+      })) as LoanApplicationRecord[];
+      return results.slice(0, 6).map<SearchSuggestion>(application => ({
+        value: String(application.id),
+        label: `#${application.id} • ${application.realtor}`,
+        description: `Account ${application.account_id}`,
+      }));
+    },
+    [token],
+  );
+
+  const handleDecision = React.useCallback(
+    async (application: LoanApplicationRecord, decision: 'approved' | 'rejected', refresh: () => void) => {
+      if (!token) return;
+      const reason = comments[application.id];
+      try {
+        const updated = await decideLoanApplication(token, application.id, { decision, reason });
+        setActionError('');
+        if (decision === 'approved' && updated.property_id) {
+          try {
+            await generateAgreement(token, {
+              id: updated.id,
+              loan_application_id: updated.id,
+              property_id: updated.property_id,
+            });
+          } catch (err) {
+            setActionError('Failed to generate agreement');
+          }
+        }
+        refresh();
+        setComments(prev => {
+          const next = { ...prev };
+          delete next[application.id];
           return next;
         });
-      })
-      .catch(() => setError('Failed to submit decision'));
-  };
+      } catch (err) {
+        setActionError('Failed to submit decision');
+      }
+    },
+    [token, comments],
+  );
 
   return (
     <div>
       <h2>Loan Applications Queue</h2>
-      {error && <p>{error}</p>}
-      {apps.length === 0 && <p>No pending applications.</p>}
-      {apps.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th onClick={() => sortBy('id')}>ID</th>
-              <th onClick={() => sortBy('realtor')}>Realtor</th>
-              <th onClick={() => sortBy('account_id')}>Account</th>
-              <th>Property Application</th>
-              <th>Property Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {apps.map(app => (
-              <tr key={app.id}>
-                <td>{app.id}</td>
-                <td>{app.realtor}</td>
-                <td>{app.account_id}</td>
-                <td>{app.property_application_id ?? '—'}</td>
-                <td>{formatStatus(propertyStatuses[app.property_application_id ?? -1])}</td>
-                <td>
-                  <input
-                    type="text"
-                    value={comments[app.id] || ''}
-                    onChange={e =>
-                      setComments({ ...comments, [app.id]: e.target.value })
-                    }
-                    placeholder="Comment"
-                  />
-                  <button onClick={() => handleDecision(app.id, 'approved')}>
-                    Approve
-                  </button>
-                  <button onClick={() => handleDecision(app.id, 'rejected')}>
-                    Reject
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <p>Review loan applications, capture manager feedback, and approve or reject directly from search results.</p>
+      {actionError && (
+        <p role="alert" className="search-panel__error">
+          {actionError}
+        </p>
       )}
+      <SearchPanel<LoanApplicationRecord>
+        placeholder="Search by application ID, realtor, property, or account"
+        emptyMessage="No loan applications awaiting review."
+        performSearch={fetchLoanApps}
+        fetchSuggestions={fetchSuggestions}
+        getResultKey={application => application.id}
+        renderResult={(application, helpers) => (
+          <>
+            <div>
+              <strong>Loan #{application.id}</strong> for account {application.account_id}
+            </div>
+            <div>Realtor: {application.realtor}</div>
+            <div>
+              Property Application: {application.property_application_id ?? '—'} • Status:{' '}
+              {formatStatus(propertyStatuses[application.property_application_id ?? -1])}
+            </div>
+            <div className="loan-result__actions">
+              <label className="loan-result__comment">
+                <span>Comment</span>
+                <input
+                  type="text"
+                  value={comments[application.id] ?? ''}
+                  onChange={event =>
+                    setComments(prev => ({ ...prev, [application.id]: event.target.value }))
+                  }
+                  placeholder="Optional notes"
+                />
+              </label>
+              <div className="loan-result__buttons">
+                <button type="button" onClick={() => handleDecision(application, 'approved', helpers.refresh)}>
+                  Approve
+                </button>
+                <button type="button" onClick={() => handleDecision(application, 'rejected', helpers.refresh)}>
+                  Reject
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      />
     </div>
   );
 };

@@ -200,6 +200,22 @@ def get_projects_service(
     return ProjectsService(repos)
 
 
+def _normalize_query(query: Optional[str]) -> Optional[str]:
+    if not query:
+        return None
+    normalized = query.strip().lower()
+    return normalized or None
+
+
+def _matches_query(term: str, *values: Any) -> bool:
+    for value in values:
+        if value is None:
+            continue
+        if term in str(value).lower():
+            return True
+    return False
+
+
 def _normalize_recipients(recipients: List[str]) -> List[str]:
     normalized: List[str] = []
     seen: set[str] = set()
@@ -1591,12 +1607,25 @@ def submit_property_application(
 @app.get("/property-applications", response_model=List[PropertyApplication])
 def list_property_applications(
     status: Optional[SubmissionStatus] = None,
+    q: Optional[str] = None,
     _: Agent = Depends(require_management),
     repos: Repositories = Depends(get_repositories),
 ):
     applications = repos.applications.list()
     if status:
         applications = [app for app in applications if app.status == status]
+    term = _normalize_query(q)
+    if term:
+        applications = [
+            application
+            for application in applications
+            if _matches_query(
+                term,
+                application.id,
+                application.realtor,
+                application.property_id,
+            )
+        ]
     return applications
 
 
@@ -1731,12 +1760,20 @@ def approve_uploaded_account_opening(
 @app.get("/account-openings", response_model=List[AccountOpening])
 def list_account_openings(
     status: Optional[SubmissionStatus] = None,
+    q: Optional[str] = None,
     _: Agent = Depends(require_management),
     repos: Repositories = Depends(get_repositories),
 ):
     openings = repos.account_openings.list()
     if status:
         openings = [o for o in openings if o.status == status]
+    term = _normalize_query(q)
+    if term:
+        openings = [
+            opening
+            for opening in openings
+            if _matches_query(term, opening.id, opening.realtor, opening.account_number)
+        ]
     return openings
 
 
@@ -2114,12 +2151,28 @@ def get_loan_application(
 @app.get("/loan-applications", response_model=List[LoanApplication])
 def list_loan_applications(
     status: Optional[SubmissionStatus] = None,
+    q: Optional[str] = None,
     _: Agent = Depends(require_admin),
     repos: Repositories = Depends(get_repositories),
 ):
     apps = repos.loan_applications.list()
     if status:
         apps = [a for a in apps if a.status == status]
+    term = _normalize_query(q)
+    if term:
+        apps = [
+            application
+            for application in apps
+            if _matches_query(
+                term,
+                application.id,
+                application.realtor,
+                application.account_id,
+                application.property_id,
+                application.property_application_id,
+                application.loan_account_number,
+            )
+        ]
     return apps
 
 

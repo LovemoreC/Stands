@@ -444,9 +444,23 @@ export async function submitPropertyApplication(
   return res.json();
 }
 
-export async function getPropertyApplications(token: string, status?: string) {
-  const url = status ? `/property-applications?status=${status}` : '/property-applications';
-  const res = await fetch(apiUrl(url), { headers: headers(token) });
+type QueueFilters = {
+  status?: string;
+  q?: string;
+};
+
+const encodeQueueFilters = (filters: QueueFilters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.q) params.set('q', filters.q);
+  const query = params.toString();
+  return query ? `?${query}` : '';
+};
+
+export async function getPropertyApplications(token: string, filters: QueueFilters = {}) {
+  const res = await fetch(apiUrl(`/property-applications${encodeQueueFilters(filters)}`), {
+    headers: headers(token),
+  });
   if (!res.ok) throw new Error('Failed to load property applications');
   return res.json();
 }
@@ -460,9 +474,10 @@ export async function approvePropertyApplication(token: string, id: number) {
   return res.json();
 }
 
-export async function getAccountOpenings(token: string, status?: string) {
-  const url = status ? `/account-openings?status=${status}` : '/account-openings';
-  const res = await fetch(apiUrl(url), { headers: headers(token) });
+export async function getAccountOpenings(token: string, filters: QueueFilters = {}) {
+  const res = await fetch(apiUrl(`/account-openings${encodeQueueFilters(filters)}`), {
+    headers: headers(token),
+  });
   if (!res.ok) throw new Error('Failed to load account openings');
   return res.json();
 }
@@ -579,9 +594,10 @@ export async function getImportedLoanAccount(token: string, id: string) {
   return res.json() as Promise<ImportedLoanAccount>;
 }
 
-export async function getLoanApplications(token: string, status?: string) {
-  const url = status ? `/loan-applications?status=${status}` : '/loan-applications';
-  const res = await fetch(apiUrl(url), { headers: headers(token) });
+export async function getLoanApplications(token: string, filters: QueueFilters = {}) {
+  const res = await fetch(apiUrl(`/loan-applications${encodeQueueFilters(filters)}`), {
+    headers: headers(token),
+  });
   if (!res.ok) throw new Error('Failed to load loan applications');
   return res.json();
 }
