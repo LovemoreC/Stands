@@ -21,5 +21,25 @@ services:
       - "8080:80"
     depends_on:
       - web
+  inbox-worker:
+    build: .
+    env_file:
+      - .env
+    command: ["python", "-m", "app.inbox_runner"]
+    environment:
+      DATABASE_URL: "sqlite:///data/app.db"
+      SECRET_KEY: "${SECRET_KEY}"
+      INITIAL_ADMIN_TOKEN: "${INITIAL_ADMIN_TOKEN}"
+      IMAP_HOST: "${IMAP_HOST}"
+      IMAP_USERNAME: "${IMAP_USERNAME}"
+      IMAP_PASSWORD: "${IMAP_PASSWORD}"
+      IMAP_FOLDER: "${IMAP_FOLDER:-INBOX}"
+      IMAP_PORT: "${IMAP_PORT:-}"
+      IMAP_USE_SSL: "${IMAP_USE_SSL:-true}"
+      INBOUND_EMAIL_POLL_INTERVAL: "${INBOUND_EMAIL_POLL_INTERVAL:-60}"
+    volumes:
+      - sqlite_data:/app/data
+    depends_on:
+      - web
 volumes:
   sqlite_data:
