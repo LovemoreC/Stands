@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../auth';
+import SearchPanel, { SearchSuggestion } from '../components/SearchPanel';
 import { approvePropertyApplication, getPropertyApplications } from '../api';
 
 interface PropertyApplicationRecord {
@@ -10,14 +11,6 @@ interface PropertyApplicationRecord {
   details?: string | null;
 }
 
-const STATUS_OPTIONS = [
-  { value: 'submitted', label: 'Submitted' },
-  { value: 'manager_approved', label: 'Manager Approved' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'rejected', label: 'Rejected' },
-];
-
 const formatStatus = (status: string) =>
   status
     .split('_')
@@ -26,98 +19,79 @@ const formatStatus = (status: string) =>
 
 const PropertyApplicationsQueue: React.FC = () => {
   const { auth } = useAuth();
-  const [applications, setApplications] = React.useState<PropertyApplicationRecord[]>([]);
-  const [error, setError] = React.useState('');
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [statusFilter, setStatusFilter] = React.useState('submitted');
+  const token = auth?.token;
+  const [actionError, setActionError] = React.useState('');
 
-  const loadApplications = React.useCallback(() => {
-    if (!auth) return;
-    setIsLoading(true);
-    const statusParam = statusFilter === 'all' ? undefined : statusFilter;
-    getPropertyApplications(auth.token, statusParam)
-      .then(data => {
-        setApplications(data);
-        setError('');
-      })
-      .catch(() => setError('Unable to load property applications.'))
-      .finally(() => setIsLoading(false));
-  }, [auth, statusFilter]);
+  const fetchApplications = React.useCallback(
+    async (term: string) => {
+      if (!token) return [];
+      const filters = { status: 'submitted', ...(term ? { q: term } : {}) };
+      return getPropertyApplications(token, filters) as Promise<PropertyApplicationRecord[]>;
+    },
+    [token],
+  );
 
-  React.useEffect(() => {
-    loadApplications();
-  }, [loadApplications]);
+  const fetchSuggestions = React.useCallback(
+    async (term: string) => {
+      if (!token) return [];
+      const results = (await getPropertyApplications(token, {
+        status: 'submitted',
+        q: term,
+      })) as PropertyApplicationRecord[];
+      return results.slice(0, 6).map<SearchSuggestion>(application => ({
+        value: String(application.id),
+        label: `#${application.id} • ${application.realtor}`,
+        description: `Property ${application.property_id}`,
+      }));
+    },
+    [token],
+  );
 
-  const handleFilterChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setStatusFilter(event.target.value);
-  };
-
-  const handleApprove = async (id: number) => {
-    if (!auth) return;
-    try {
-      await approvePropertyApplication(auth.token, id);
-      setApplications(prev => prev.filter(app => app.id !== id));
-      setError('');
-    } catch (err) {
-      setError('Failed to approve property application.');
-    }
-  };
+  const handleApprove = React.useCallback(
+    async (id: number, refresh: () => void) => {
+      if (!token) return;
+      try {
+        await approvePropertyApplication(token, id);
+        setActionError('');
+        refresh();
+      } catch (err) {
+        setActionError('Failed to approve property application.');
+      }
+    },
+    [token],
+  );
 
   return (
     <div>
       <h2>Property Application Review Queue</h2>
-      {error && <p role="alert">{error}</p>}
-      <div className="form-fields" style={{ maxWidth: 320 }}>
-        <label htmlFor="property-status-filter">
-          Filter by status
-          <select
-            id="property-status-filter"
-            value={statusFilter}
-            onChange={handleFilterChange}
-          >
-            <option value="all">All</option>
-            {STATUS_OPTIONS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {isLoading && <p>Loading applications…</p>}
-      {!isLoading && applications.length === 0 && <p>No applications awaiting review.</p>}
-      {applications.length > 0 && (
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead className="data-table__header">
-              <tr>
-                <th scope="col">Application</th>
-                <th scope="col">Property</th>
-                <th scope="col">Realtor</th>
-                <th scope="col">Notes</th>
-                <th scope="col">Workflow Status</th>
-                <th scope="col">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {applications.map(app => (
-                <tr key={app.id}>
-                  <td>#{app.id}</td>
-                  <td>{app.property_id}</td>
-                  <td>{app.realtor}</td>
-                  <td>{app.details ?? '—'}</td>
-                  <td>{formatStatus(app.status)}</td>
-                  <td>
-                    <button type="button" onClick={() => handleApprove(app.id)}>
-                      Approve
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <p>Search for submitted property applications and approve them without leaving the queue.</p>
+      {actionError && (
+        <p role="alert" className="search-panel__error">
+          {actionError}
+        </p>
       )}
+      <SearchPanel<PropertyApplicationRecord>
+        placeholder="Search by application ID, realtor, or property number"
+        emptyMessage="No property applications awaiting review."
+        performSearch={fetchApplications}
+        fetchSuggestions={fetchSuggestions}
+        getResultKey={application => application.id}
+        renderResult={(application, helpers) => (
+          <>
+            <div>
+              <strong>Application #{application.id}</strong> for property {application.property_id}
+            </div>
+            <div>Realtor: {application.realtor}</div>
+            <div>Status: {formatStatus(application.status)}</div>
+            <div>Notes: {application.details ?? '—'}</div>
+            <div>
+              <button type="button" onClick={() => handleApprove(application.id, helpers.refresh)}>
+                Approve application
+              </button>
+            </div>
+          </>
+        )}
+      />
     </div>
   );
 };
