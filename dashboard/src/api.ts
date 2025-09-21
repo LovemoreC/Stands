@@ -444,6 +444,72 @@ export async function submitPropertyApplication(
   return res.json();
 }
 
+export interface LoanApplicationSubmission {
+  id: number;
+  realtor: string;
+  account_id: number;
+  property_application_id: number;
+  property_id?: number | null;
+  file?: File | null;
+  documents?: Record<string, File>;
+}
+
+export async function submitLoanApplication(
+  token: string,
+  payload: LoanApplicationSubmission,
+) {
+  const opts: RequestInit = { method: 'POST' };
+  const documents = payload.documents ?? {};
+  const hasUploads = Boolean(payload.file) || Object.keys(documents).length > 0;
+
+  if (hasUploads) {
+    const form = new FormData();
+    form.append('id', String(payload.id));
+    form.append('realtor', payload.realtor);
+    form.append('account_id', String(payload.account_id));
+    form.append('property_application_id', String(payload.property_application_id));
+    if (typeof payload.property_id === 'number') {
+      form.append('property_id', String(payload.property_id));
+    }
+    if (payload.file) {
+      form.append('file', payload.file);
+    }
+    Object.entries(documents).forEach(([slug, file]) => {
+      form.append(slug, file);
+    });
+    opts.body = form;
+    opts.headers = { Authorization: `Bearer ${token}` };
+  } else {
+    const body: Record<string, unknown> = {
+      id: payload.id,
+      realtor: payload.realtor,
+      account_id: payload.account_id,
+      property_application_id: payload.property_application_id,
+      required_documents: {},
+    };
+    if (typeof payload.property_id === 'number') {
+      body.property_id = payload.property_id;
+    }
+    opts.body = JSON.stringify(body);
+    opts.headers = headers(token);
+  }
+
+  const res = await fetch(apiUrl('/loan-applications'), opts);
+  if (!res.ok) {
+    let message = 'Failed to submit loan application';
+    try {
+      const data = await res.json();
+      if (data?.detail) {
+        message = data.detail;
+      }
+    } catch (err) {
+      // ignore parsing errors and use default message
+    }
+    throw new Error(message);
+  }
+  return res.json();
+}
+
 type QueueFilters = {
   status?: string;
   q?: string;

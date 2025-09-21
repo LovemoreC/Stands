@@ -7,6 +7,9 @@ import {
   submitOffer,
   submitPropertyApplication,
   submitAccountOpening,
+  submitLoanApplication,
+  getAccountOpenings,
+  getPropertyApplications,
 } from '../api';
 
 interface FileData {
@@ -15,6 +18,29 @@ interface FileData {
   propertyId?: string;
   id?: string;
   documents: Record<string, File | null>;
+}
+
+interface LoanFormData {
+  primaryFile: File | null;
+  loanId: string;
+  accountId: string;
+  propertyApplicationId: string;
+  propertyId: string;
+  documents: Record<string, File | null>;
+}
+
+interface AccountOpeningRecord {
+  id: number;
+  realtor: string;
+  status: string;
+  account_number?: string | null;
+}
+
+interface PropertyApplicationRecord {
+  id: number;
+  realtor: string;
+  status: string;
+  property_id?: number | null;
 }
 
 const MultiStepForm: React.FC = () => {
@@ -38,6 +64,14 @@ const MultiStepForm: React.FC = () => {
     primaryFile: null,
     documents: {},
   });
+  const [loan, setLoan] = React.useState<LoanFormData>({
+    loanId: '',
+    accountId: '',
+    propertyApplicationId: '',
+    propertyId: '',
+    primaryFile: null,
+    documents: {},
+  });
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
   const [requirements, setRequirements] = React.useState<
@@ -49,6 +83,12 @@ const MultiStepForm: React.FC = () => {
     loan_application: [],
   });
   const [requirementsLoaded, setRequirementsLoaded] = React.useState(false);
+  const [eligibleAccounts, setEligibleAccounts] = React.useState<
+    AccountOpeningRecord[]
+  >([]);
+  const [approvedPropertyApps, setApprovedPropertyApps] = React.useState<
+    PropertyApplicationRecord[]
+  >([]);
 
   const mergeDocuments = (
     reqs: DocumentRequirement[],
@@ -76,10 +116,11 @@ const MultiStepForm: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [offerReqs, propertyReqs, accountReqs] = await Promise.all([
+        const [offerReqs, propertyReqs, accountReqs, loanReqs] = await Promise.all([
           listDocumentRequirements(auth.token, 'offer'),
           listDocumentRequirements(auth.token, 'property_application'),
           listDocumentRequirements(auth.token, 'account_opening'),
+          listDocumentRequirements(auth.token, 'loan_application'),
         ]);
         if (!cancelled) {
           setRequirements(prev => ({
@@ -87,6 +128,7 @@ const MultiStepForm: React.FC = () => {
             offer: offerReqs,
             property_application: propertyReqs,
             account_opening: accountReqs,
+            loan_application: loanReqs,
           }));
         }
       } catch (err) {
@@ -97,6 +139,7 @@ const MultiStepForm: React.FC = () => {
             offer: [],
             property_application: [],
             account_opening: [],
+            loan_application: [],
           }));
         }
       } finally {
@@ -126,7 +169,67 @@ const MultiStepForm: React.FC = () => {
       ...prev,
       documents: mergeDocuments(requirements.account_opening, prev.documents),
     }));
+    setLoan(prev => ({
+      ...prev,
+      documents: mergeDocuments(requirements.loan_application, prev.documents),
+    }));
   }, [requirements]);
+
+  React.useEffect(() => {
+    if (!auth) {
+      setEligibleAccounts([]);
+      setApprovedPropertyApps([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [accountsResult, propertiesResult] = await Promise.allSettled([
+        getAccountOpenings(auth.token, { status: 'completed' }),
+        getPropertyApplications(auth.token, { status: 'manager_approved' }),
+      ]);
+      if (cancelled) return;
+      if (accountsResult.status === 'fulfilled') {
+        const records = (accountsResult.value as AccountOpeningRecord[]).filter(
+          record =>
+            record.status === 'completed' &&
+            (!auth?.username || record.realtor === auth.username),
+        );
+        setEligibleAccounts(records);
+      } else {
+        setEligibleAccounts([]);
+      }
+      if (propertiesResult.status === 'fulfilled') {
+        const records = (propertiesResult.value as PropertyApplicationRecord[]).filter(
+          record =>
+            record.status === 'manager_approved' &&
+            (!auth?.username || record.realtor === auth.username),
+        );
+        setApprovedPropertyApps(records);
+      } else {
+        setApprovedPropertyApps([]);
+      }
+    })().catch(err => {
+      console.error(err);
+      if (!cancelled) {
+        setEligibleAccounts([]);
+        setApprovedPropertyApps([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth]);
+
+  React.useEffect(() => {
+    const selected = approvedPropertyApps.find(
+      app => String(app.id) === loan.propertyApplicationId,
+    );
+    const derived = selected?.property_id ? String(selected.property_id) : '';
+    if ((derived || '') === (loan.propertyId || '')) {
+      return;
+    }
+    setLoan(prev => ({ ...prev, propertyId: derived }));
+  }, [approvedPropertyApps, loan.propertyApplicationId, loan.propertyId]);
 
   if (!auth) return null;
 
@@ -147,8 +250,22 @@ const MultiStepForm: React.FC = () => {
     Boolean(account.details.trim()) &&
     Boolean(account.primaryFile) &&
     requirements.account_opening.every(req => Boolean(account.documents[req.slug]));
+  const loanComplete =
+    Boolean(loan.loanId.trim()) &&
+    Boolean(loan.accountId.trim()) &&
+    Boolean(loan.propertyApplicationId.trim()) &&
+    Boolean(loan.primaryFile) &&
+    requirements.loan_application.every(req => Boolean(loan.documents[req.slug]));
 
-  const validateFile = (f?: File) => {
+  const selectedLoanProperty = React.useMemo(
+    () =>
+      approvedPropertyApps.find(
+        app => String(app.id) === loan.propertyApplicationId,
+      ) ?? null,
+    [approvedPropertyApps, loan.propertyApplicationId],
+  );
+
+  const validateFile = (f?: File | null) => {
     if (!f) return 'File is required';
     const ext = f.name.split('.').pop()?.toLowerCase();
     return ext === 'pdf' || ext === 'csv' ? null : 'File must be PDF or CSV';
@@ -268,6 +385,89 @@ const MultiStepForm: React.FC = () => {
         details: '',
         primaryFile: null,
         documents: mergeDocuments(requirements.account_opening, {}),
+      });
+      next();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const submitLoanStep = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requirementsLoaded) {
+      setError('Document requirements are still loading');
+      return;
+    }
+    if (!loan.loanId) {
+      setError('Loan application ID is required');
+      return;
+    }
+    const parsedLoanId = Number(loan.loanId);
+    if (!Number.isFinite(parsedLoanId)) {
+      setError('Loan application ID must be a number');
+      return;
+    }
+    if (!loan.accountId) {
+      setError('Completed account ID is required');
+      return;
+    }
+    const parsedAccountId = Number(loan.accountId);
+    if (!Number.isFinite(parsedAccountId)) {
+      setError('Completed account ID must be a number');
+      return;
+    }
+    if (!loan.propertyApplicationId) {
+      setError('Approved property application ID is required');
+      return;
+    }
+    const parsedPropertyApplicationId = Number(loan.propertyApplicationId);
+    if (!Number.isFinite(parsedPropertyApplicationId)) {
+      setError('Approved property application ID must be a number');
+      return;
+    }
+    let parsedPropertyId: number | undefined;
+    if (loan.propertyId) {
+      parsedPropertyId = Number(loan.propertyId);
+      if (!Number.isFinite(parsedPropertyId)) {
+        setError('Property ID must be a number');
+        return;
+      }
+    }
+    const fileErr = validateFile(loan.primaryFile);
+    if (fileErr) {
+      setError(fileErr);
+      return;
+    }
+    const missingDoc = requirements.loan_application.find(
+      req => !loan.documents[req.slug],
+    );
+    if (missingDoc) {
+      setError(`Please upload ${missingDoc.name}`);
+      return;
+    }
+    const docFiles: Record<string, File> = {};
+    requirements.loan_application.forEach(req => {
+      const file = loan.documents[req.slug];
+      if (file) docFiles[req.slug] = file;
+    });
+    try {
+      await submitLoanApplication(auth.token, {
+        id: parsedLoanId,
+        realtor: auth.username,
+        account_id: parsedAccountId,
+        property_application_id: parsedPropertyApplicationId,
+        property_id: parsedPropertyId,
+        file: loan.primaryFile!,
+        documents: docFiles,
+      });
+      setSuccess('Loan application submitted');
+      setLoan({
+        loanId: '',
+        accountId: '',
+        propertyApplicationId: '',
+        propertyId: '',
+        primaryFile: null,
+        documents: mergeDocuments(requirements.loan_application, {}),
       });
       next();
     } catch (err: any) {
@@ -490,7 +690,150 @@ const MultiStepForm: React.FC = () => {
           </form>
         </section>
       )}
-      {step > 3 && <p className="form-message form-message--success">All steps completed.</p>}
+      {step === 4 && (
+        <section className="form-section">
+          <form className="form-card" onSubmit={submitLoanStep}>
+            <h3 className="form-title">Loan Application</h3>
+            <div className="form-fields">
+              <label htmlFor="loan-id">
+                Loan Application ID
+                <input
+                  id="loan-id"
+                  placeholder="Enter loan application ID"
+                  value={loan.loanId}
+                  onChange={e =>
+                    setLoan(prev => ({ ...prev, loanId: e.target.value }))
+                  }
+                />
+              </label>
+              <label htmlFor="loan-account">
+                Completed Account
+                {eligibleAccounts.length > 0 ? (
+                  <select
+                    id="loan-account"
+                    value={loan.accountId}
+                    onChange={e =>
+                      setLoan(prev => ({ ...prev, accountId: e.target.value }))
+                    }
+                  >
+                    <option value="">Select a completed account</option>
+                    {eligibleAccounts.map(account => (
+                      <option key={account.id} value={account.id}>
+                        #{account.id}
+                        {account.account_number
+                          ? ` • Account ${account.account_number}`
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="loan-account"
+                    placeholder="Enter completed account ID"
+                    value={loan.accountId}
+                    onChange={e =>
+                      setLoan(prev => ({ ...prev, accountId: e.target.value }))
+                    }
+                  />
+                )}
+              </label>
+              <label htmlFor="loan-property-app">
+                Approved Property Application
+                {approvedPropertyApps.length > 0 ? (
+                  <select
+                    id="loan-property-app"
+                    value={loan.propertyApplicationId}
+                    onChange={e =>
+                      setLoan(prev => ({
+                        ...prev,
+                        propertyApplicationId: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Select an approved property application</option>
+                    {approvedPropertyApps.map(app => (
+                      <option key={app.id} value={app.id}>
+                        #{app.id}
+                        {typeof app.property_id === 'number'
+                          ? ` • Property ${app.property_id}`
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="loan-property-app"
+                    placeholder="Enter approved property application ID"
+                    value={loan.propertyApplicationId}
+                    onChange={e =>
+                      setLoan(prev => ({
+                        ...prev,
+                        propertyApplicationId: e.target.value,
+                      }))
+                    }
+                  />
+                )}
+              </label>
+              <label htmlFor="loan-property">
+                Property ID
+                <input
+                  id="loan-property"
+                  placeholder="Derived from property application"
+                  value={loan.propertyId}
+                  onChange={e =>
+                    setLoan(prev => ({ ...prev, propertyId: e.target.value }))
+                  }
+                  readOnly={Boolean(selectedLoanProperty)}
+                />
+              </label>
+              <label htmlFor="loan-primary">
+                Primary Document
+                <input
+                  id="loan-primary"
+                  type="file"
+                  accept=".pdf,.csv"
+                  onChange={e =>
+                    setLoan(prev => ({
+                      ...prev,
+                      primaryFile: e.target.files?.[0] ?? null,
+                    }))
+                  }
+                  required
+                />
+              </label>
+              {requirements.loan_application.map(req => (
+                <label key={req.id} htmlFor={`loan-${req.slug}`}>
+                  {req.name}
+                  <input
+                    id={`loan-${req.slug}`}
+                    type="file"
+                    accept=".pdf,.csv"
+                    onChange={e =>
+                      setLoan(prev => ({
+                        ...prev,
+                        documents: {
+                          ...prev.documents,
+                          [req.slug]: e.target.files?.[0] ?? null,
+                        },
+                      }))
+                    }
+                    required
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="form-actions">
+              <button
+                type="submit"
+                disabled={!requirementsLoaded || !loanComplete}
+              >
+                Submit
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+      {step > 4 && <p className="form-message form-message--success">All steps completed.</p>}
     </div>
   );
 };
