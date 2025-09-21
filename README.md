@@ -49,6 +49,27 @@ Interactive docs will be available at `http://127.0.0.1:8000/docs`.
 Set `FRONTEND_ORIGINS` to a comma-separated list of allowed origins if your frontend runs somewhere other than
 `http://localhost:5173`.
 
+## Inbound Email Processor
+
+The `InboundEmailProcessor` can be executed as a standalone worker that polls an Outlook/IMAP inbox and
+creates or updates customer profiles when new emails arrive. Configure the connection via environment
+variables (examples are available in `.env.example`):
+
+- `IMAP_HOST` / `IMAP_PORT`
+- `IMAP_USERNAME` / `IMAP_PASSWORD`
+- `IMAP_FOLDER` (defaults to `INBOX`)
+- `IMAP_USE_SSL` (defaults to `true`)
+- `INBOUND_EMAIL_POLL_INTERVAL` (polling interval in seconds, defaults to `60`)
+
+Run the worker once to verify connectivity:
+
+```bash
+python -m app.inbox_runner --once
+```
+
+Omit `--once` to keep the loop running in the foreground. The command reuses the same database configuration
+as the API so processed messages immediately update the shared customer profiles table.
+
 ## Admin Dashboard
 
 A simple React + TypeScript dashboard is available in the `dashboard/` directory. It offers role-based routing and CRUD views for projects, stands, and mandate assignments.
@@ -108,6 +129,7 @@ Once the containers are running you can reach:
 
 - Dashboard: <http://localhost:8080>
 - API: <http://localhost:8000> (interactive docs at <http://localhost:8000/docs>)
+- Inbound email worker: runs in the background and shares the same SQLite volume
 
 To seed the initial administrator in Docker, export the optional variables before running
 Compose so the startup hook can create the account when the database is empty:
@@ -121,6 +143,8 @@ docker compose up --build
 The backend persists the SQLite database using the named volume `sqlite_data` mounted at `/app/data` and reads environment values from `.env`.
 By default it allows requests from both `http://localhost:8080` and `http://localhost:5173` so the static dashboard and the Vite dev server can call the API.
 The frontend image is built with `VITE_API_BASE=http://web:8000`, which points API calls from the bundled code to the backend service on the Docker network.
+The `inbox-worker` service (defined in `docker-compose.yml`) runs `python -m app.inbox_runner` so inbound replies are processed
+alongside the API and frontend containers.
 
 ## Authentication
 
