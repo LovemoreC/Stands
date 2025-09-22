@@ -4,4 +4,7 @@ __pycache__/
 data/
 node_modules/
 dist/
-
+**/node_modules/
+**/dist/
+**/build/
+**/.cache/
